@@ -18,6 +18,7 @@ let prevHandsAngle = null;
 // no integrator for pitch; map controller tilt directly each frame
 let wasUnlocked = false;
 let neutralPitch = null;
+let baseTurretPitch = null; // preserves turret X when unlocking again
 let tankPosText = null;
 let tankRotText = null;
 let playerPosText = null;
@@ -268,9 +269,11 @@ function onFrame(delta, _time, { controllers, camera, player }) {
   if (bothHeld && !wasUnlocked) {
     wasUnlocked = true;
     neutralPitch = null; // will be set after we read controller quaternions below
+    baseTurretPitch = (turretPivot && typeof turretPivot.rotation?.x === 'number') ? turretPivot.rotation.x : 0;
   } else if (!bothHeld && wasUnlocked) {
     wasUnlocked = false;
     neutralPitch = null;
+    baseTurretPitch = null;
   }
 
   // Update tank position HUD
@@ -384,9 +387,10 @@ function onFrame(delta, _time, { controllers, camera, player }) {
     }
 
     if (turretPivot) {
-      // Map absolute controller tilt relative to neutral baseline (no accumulation)
+      // Map absolute controller tilt relative to neutral baseline, offset by base turret pitch
       const relPitch = avgPitch - neutralPitch; // 0 at neutral
-      const targetX = THREE.MathUtils.clamp(relPitch * TURRET_PITCH_SPEED, TURRET_PITCH_MIN, TURRET_PITCH_MAX);
+      const base = baseTurretPitch ?? 0;
+      const targetX = THREE.MathUtils.clamp(base + relPitch * TURRET_PITCH_SPEED, TURRET_PITCH_MIN, TURRET_PITCH_MAX);
       turretPivot.rotation.x = targetX;
     }
   } else {
