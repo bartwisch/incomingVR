@@ -302,6 +302,7 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 
   // Two-hand rotation when unlocked
   if (bothHeld && controllers.left && controllers.right && tankPivot) {
+    let yawDeltaThisFrame = 0; // used to decouple pitch when yawing
     const lp = new THREE.Vector3();
     const rp = new THREE.Vector3();
     controllers.left.gripSpace.getWorldPosition(lp);
@@ -319,28 +320,39 @@ function onFrame(delta, _time, { controllers, camera, player }) {
         if (deltaAngle > Math.PI) deltaAngle -= 2 * Math.PI;
         if (deltaAngle < -Math.PI) deltaAngle += 2 * Math.PI;
         tankPivot.rotation.y += deltaAngle;
+        yawDeltaThisFrame = deltaAngle;
         prevHandsAngle = angle;
       }
     }
 
-    // Turret pitch: use midpoint movement along CAMERA forward
-    // This makes pitch relative to HMD, reducing unintended motion from head translation.
+    // Turret pitch: measure along PLAYER yaw-forward on XZ (ignore head pitch)
     const mid = lp.clone().add(rp).multiplyScalar(0.5);
-    const camFwd = new THREE.Vector3();
-    camera.getWorldDirection(camFwd);
-    camFwd.normalize();
-    const camPos = new THREE.Vector3();
-    camera.getWorldPosition(camPos);
-    const s = mid.sub(camPos).dot(camFwd); // signed forward distance from camera
+    const playerQuat = new THREE.Quaternion();
+    const playerPos = new THREE.Vector3();
+    if (player) player.getWorldQuaternion(playerQuat);
+    if (player) player.getWorldPosition(playerPos);
+    const eul = new THREE.Euler().setFromQuaternion(playerQuat, 'YXZ');
+    const yaw = eul.y;
+    const playerFwd = new THREE.Vector3(Math.sin(yaw), 0, -Math.cos(yaw));
+    const midXZ = mid.clone();
+    midXZ.y = 0;
+    const playerPosXZ = playerPos.clone();
+    playerPosXZ.y = 0;
+    const s = midXZ.sub(playerPosXZ).dot(playerFwd); // signed forward distance from player on XZ
     if (prevHandsMidFwd == null) {
       prevHandsMidFwd = s;
     } else if (turretPivot) {
       let deltaS = s - prevHandsMidFwd; // pulling towards self => deltaS negative
-      // Inverted pitch: pull (deltaS<0) lowers turret (negative X rotation)
-      turretPivot.rotation.x += (deltaS) * TURRET_PITCH_SPEED;
-      // Clamp pitch
-      if (turretPivot.rotation.x > TURRET_PITCH_MAX) turretPivot.rotation.x = TURRET_PITCH_MAX;
-      if (turretPivot.rotation.x < TURRET_PITCH_MIN) turretPivot.rotation.x = TURRET_PITCH_MIN;
+      // If we significantly changed yaw this frame, treat it as a pure yaw gesture
+      // and do not apply pitch to avoid cross-coupling.
+      const YAW_EPS = 1e-3;
+      if (Math.abs(yawDeltaThisFrame) < YAW_EPS) {
+        // Inverted pitch: pull (deltaS<0) lowers turret (negative X rotation)
+        turretPivot.rotation.x += (deltaS) * TURRET_PITCH_SPEED;
+        // Clamp pitch
+        if (turretPivot.rotation.x > TURRET_PITCH_MAX) turretPivot.rotation.x = TURRET_PITCH_MAX;
+        if (turretPivot.rotation.x < TURRET_PITCH_MIN) turretPivot.rotation.x = TURRET_PITCH_MIN;
+      }
       prevHandsMidFwd = s;
     }
   } else {
