@@ -17,6 +17,15 @@ let turretPivot = null;
 let prevHandsAngle = null;
 let prevHandsMidFwd = null;
 let tankPosText = null;
+let tankRotText = null;
+
+// Shooting state
+let bulletGroup = null;
+let bulletGeo = null;
+let bulletMat = null;
+const bullets = [];
+let audioListener = null;
+let shotBuffer = null;
 
 function setupScene({ scene, camera, renderer: _renderer, player: _player, controllers: _controllers }) {
   const loader = new GLTFLoader();
@@ -91,23 +100,6 @@ function setupScene({ scene, camera, renderer: _renderer, player: _player, contr
     labelZ.sync();
   });
 
-  // Create a HUD crosshair centered in view
-  const innerRadius = 0.01; // meters
-  const outerRadius = 0.02; // meters
-  const crosshairGeom = new THREE.RingGeometry(innerRadius, outerRadius, 48);
-  const crosshairMat = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.9,
-    depthTest: false,   // render on top
-    depthWrite: false,
-  });
-  const crosshair = new THREE.Mesh(crosshairGeom, crosshairMat);
-  crosshair.renderOrder = 999; // ensure drawn last
-  crosshair.position.set(0, 0, -1.2); // distance in front of camera
-  crosshair.frustumCulled = false;
-  camera.add(crosshair);
-
   // HUD text for unlock indicator (hidden by default)
   unlockText = new Text();
   unlockText.text = 'UNLOCK';
@@ -168,14 +160,59 @@ function setupScene({ scene, camera, renderer: _renderer, player: _player, contr
   tankPosText.material.depthTest = false;
   tankPosText.material.depthWrite = false;
   camera.add(tankPosText);
+
+  // HUD: display tank rotation (yaw/pitch/roll in degrees)
+  tankRotText = new Text();
+  tankRotText.text = 'Rot: yaw=0 pitch=0 roll=0';
+  tankRotText.fontSize = 0.06;
+  tankRotText.color = 0xffffff;
+  tankRotText.anchorX = 'left';
+  tankRotText.anchorY = 'top';
+  tankRotText.position.set(-0.6, 0.49, -1.2);
+  tankRotText.renderOrder = 1000;
+  tankRotText.material.depthTest = false;
+  tankRotText.material.depthWrite = false;
+  camera.add(tankRotText);
+
+  // Bullet prototype/shared
+  bulletGeo = new THREE.SphereGeometry(0.05, 16, 12);
+  bulletMat = new THREE.MeshStandardMaterial({ color: 0xffaa00 });
+  bulletGroup = new THREE.Group();
+  scene.add(bulletGroup);
+
+  // Audio: listener + load shot buffer (prefer shot1.mp3 with fallbacks)
+  audioListener = new THREE.AudioListener();
+  camera.add(audioListener);
+  const audioLoader = new THREE.AudioLoader();
+  const tryLoad = (url, next) => {
+    audioLoader.load(
+      url,
+      (buffer) => {
+        shotBuffer = buffer;
+      },
+      undefined,
+      () => {
+        if (next) next();
+      },
+    );
+  };
+  tryLoad('assets/shot1.mp3', () =>
+    tryLoad('assets/big_caliber_gunshot-1757083126996.mp3', () =>
+      tryLoad('assets/laser.ogg'),
+    ),
+  );
 }
 
 const DEADZONE = 0.15;
 const PLAYER_MOVE_SPEED = 2.0; // m/s for left-stick locomotion
-const PLAYER_TURN_SPEED = 2.5; // rad/s yaw for right-stick turn
+const PLAYER_ELEVATE_SPEED = 1.5; // m/s for right-stick vertical movement
 const TURRET_PITCH_SPEED = 2.0; // rad per meter pulled towards self (doubled sensitivity)
 const TURRET_PITCH_MIN = -Math.PI / 4; // -45 deg
 const TURRET_PITCH_MAX = Math.PI / 4; // +45 deg
+const BULLET_SPEED = 10; // m/s
+const BULLET_TTL = 2.0; // seconds
+const FIRE_RATE = 10; // per second when both triggers held
+let fireTimer = 0;
 
 function onFrame(delta, _time, { controllers, camera, player }) {
   // Determine unlock state (both squeezes held)
@@ -202,6 +239,15 @@ function onFrame(delta, _time, { controllers, camera, player }) {
     tankPivot.getWorldPosition(p);
     tankPosText.text = `Tank: x=${p.x.toFixed(2)} y=${p.y.toFixed(2)} z=${p.z.toFixed(2)}`;
     tankPosText.sync();
+  }
+
+  // Update tank rotation HUD (yaw from tankPivot, pitch from turretPivot, roll from turretPivot)
+  if (tankRotText && tankPivot && turretPivot) {
+    const yawDeg = THREE.MathUtils.radToDeg(tankPivot.rotation.y);
+    const pitchDeg = THREE.MathUtils.radToDeg(turretPivot.rotation.x);
+    const rollDeg = THREE.MathUtils.radToDeg(turretPivot.rotation.z);
+    tankRotText.text = `Rot: yaw=${yawDeg.toFixed(0)}° pitch=${pitchDeg.toFixed(0)}° roll=${rollDeg.toFixed(0)}°`;
+    tankRotText.sync();
   }
 
   if (controllers.left && player && camera) {
@@ -282,20 +328,80 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 
   // In LOCK mode, do not rotate the tank/turret by hand gestures.
 
-  // Right thumbstick: rotate player yaw (camera turns)
-  // Locked mode: block camera yaw entirely; only allow when UNLOCK (bothHeld)
-  if (controllers.right && player && bothHeld) {
+  // Right thumbstick: change player height (Y position)
+  if (controllers.right && player) {
     const gp = controllers.right.gamepad;
-    let rx = 0;
+    let ry = 0;
     if (gp && typeof gp.getAxis === 'function') {
-      try { rx = gp.getAxis(XR_AXES.THUMBSTICK_X) ?? 0; } catch { rx = 0; }
+      try { ry = gp.getAxis(XR_AXES.THUMBSTICK_Y) ?? 0; } catch { ry = 0; }
     } else if (gp && gp.gamepad && Array.isArray(gp.gamepad.axes)) {
-      rx = gp.gamepad.axes[2] ?? 0;
+      ry = gp.gamepad.axes[3] ?? 0;
     }
-    if (Math.abs(rx) > DEADZONE) {
-      // Right (+) -> turn right (negative yaw)
-      player.rotation.y += (-rx) * PLAYER_TURN_SPEED * delta;
+    if (Math.abs(ry) > DEADZONE) {
+      // Up on stick (-1) -> move up (+Y)
+      player.position.y += (-ry) * PLAYER_ELEVATE_SPEED * delta;
     }
+  }
+
+  // Firing: both triggers held => shoot balls from turret at fixed rate
+  const leftTriggerDown = !!(controllers.left && controllers.left.gamepad && (
+    (typeof controllers.left.gamepad.getButton === 'function' && controllers.left.gamepad.getButton(XR_BUTTONS.TRIGGER)) ||
+    (typeof controllers.left.gamepad.getButtonPressed === 'function' && controllers.left.gamepad.getButtonPressed(XR_BUTTONS.TRIGGER)) ||
+    (controllers.left.gamepad.gamepad && controllers.left.gamepad.gamepad.buttons && controllers.left.gamepad.gamepad.buttons[0]?.pressed)
+  ));
+  const rightTriggerDown = !!(controllers.right && controllers.right.gamepad && (
+    (typeof controllers.right.gamepad.getButton === 'function' && controllers.right.gamepad.getButton(XR_BUTTONS.TRIGGER)) ||
+    (typeof controllers.right.gamepad.getButtonPressed === 'function' && controllers.right.gamepad.getButtonPressed(XR_BUTTONS.TRIGGER)) ||
+    (controllers.right.gamepad.gamepad && controllers.right.gamepad.gamepad.buttons && controllers.right.gamepad.gamepad.buttons[0]?.pressed)
+  ));
+  const bothTriggers = leftTriggerDown && rightTriggerDown;
+
+  if (bothTriggers && turretPivot && bulletGeo && bulletMat && bulletGroup) {
+    fireTimer += delta;
+    const interval = 1 / FIRE_RATE;
+    while (fireTimer >= interval) {
+      fireTimer -= interval;
+      const q = new THREE.Quaternion();
+      turretPivot.getWorldQuaternion(q);
+      const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(q).normalize();
+      const start = new THREE.Vector3();
+      turretPivot.getWorldPosition(start);
+      start.addScaledVector(dir, 1.0);
+      const mesh = new THREE.Mesh(bulletGeo, bulletMat);
+      mesh.position.copy(start);
+      mesh.quaternion.copy(q);
+      mesh.userData = {
+        vel: dir.clone().multiplyScalar(BULLET_SPEED),
+        ttl: BULLET_TTL,
+      };
+      // Play shot audio at the muzzle/bullet origin
+      if (shotBuffer && audioListener) {
+        const shot = new THREE.PositionalAudio(audioListener);
+        shot.setBuffer(shotBuffer);
+        shot.setRefDistance(2);
+        shot.setVolume(0.6);
+        mesh.add(shot);
+        shot.play();
+      }
+      bulletGroup.add(mesh);
+      bullets.push(mesh);
+    }
+  } else {
+    // reset cooldown if triggers released
+    fireTimer = 0;
+  }
+
+  // Update bullets
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    b.userData.ttl -= delta;
+    if (b.userData.ttl <= 0) {
+      bulletGroup.remove(b);
+      bullets.splice(i, 1);
+      continue;
+    }
+    const deltaMove = b.userData.vel.clone().multiplyScalar(delta);
+    b.position.add(deltaMove);
   }
 }
 
