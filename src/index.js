@@ -363,7 +363,8 @@ function onFrame(delta, _time, { controllers, camera, player }) {
     const tpos = new THREE.Vector3();
     tankPivot.getWorldPosition(tpos);
     funnelGroup.position.set(tpos.x, tpos.y + 0.01, tpos.z);
-    funnelGroup.rotation.set(0, tankPivot.rotation.y, 0);
+    // Align sector forward to turret forward; add extra 180° per request
+    funnelGroup.rotation.set(0, tankPivot.rotation.y + Math.PI / 2, 0);
   }
 
   if (controllers.left && player && camera) {
