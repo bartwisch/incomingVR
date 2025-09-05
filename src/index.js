@@ -23,6 +23,7 @@ let tankPosText = null;
 let tankRotText = null;
 let playerPosText = null;
 let playerRotText = null;
+let funnelGroup = null;
 
 // Shooting state
 let bulletGroup = null;
@@ -222,6 +223,29 @@ function setupScene({ scene, camera, renderer: _renderer, player: _player, contr
   bulletGroup.userData.enemyMat = enemyMat;
   bulletGroup.userData.enemyGroup = enemyGroup;
 
+  // Visualize funnel area (in front of turret): ground sector + vertical edge lines
+  funnelGroup = new THREE.Group();
+  const spreadRad = THREE.MathUtils.degToRad(ENEMY_SPREAD_DEG);
+  const sector = new THREE.Mesh(
+    new THREE.RingGeometry(ENEMY_AHEAD_MIN, ENEMY_AHEAD_MAX, 64, 1, -spreadRad, 2 * spreadRad),
+    new THREE.MeshBasicMaterial({ color: 0x3366ff, wireframe: true }),
+  );
+  sector.rotation.x = -Math.PI / 2; // lie on XZ plane
+  funnelGroup.add(sector);
+  // boundary lines up to spawn height
+  const mkEdge = (angle) => {
+    const x = Math.cos(angle) * ENEMY_AHEAD_MAX;
+    const z = Math.sin(angle) * ENEMY_AHEAD_MAX;
+    const g = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(x, 0, z),
+      new THREE.Vector3(x, ENEMY_Y_OFFSET, z),
+    ]);
+    return new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x3366ff }));
+  };
+  funnelGroup.add(mkEdge(-spreadRad));
+  funnelGroup.add(mkEdge(+spreadRad));
+  scene.add(funnelGroup);
+
   // Audio: listener + load shot buffer (prefer shot1.mp3 with fallbacks)
   audioListener = new THREE.AudioListener();
   camera.add(audioListener);
@@ -332,6 +356,14 @@ function onFrame(delta, _time, { controllers, camera, player }) {
     const rollDeg = THREE.MathUtils.radToDeg(e.z);
     playerRotText.text = `Player Rot: yaw=${yawDeg.toFixed(0)}° pitch=${pitchDeg.toFixed(0)}° roll=${rollDeg.toFixed(0)}°`;
     playerRotText.sync();
+  }
+
+  // Update funnel visualization to follow turret (tankPivot) position + yaw
+  if (funnelGroup && tankPivot) {
+    const tpos = new THREE.Vector3();
+    tankPivot.getWorldPosition(tpos);
+    funnelGroup.position.set(tpos.x, tpos.y + 0.01, tpos.z);
+    funnelGroup.rotation.set(0, tankPivot.rotation.y, 0);
   }
 
   if (controllers.left && player && camera) {
@@ -449,30 +481,30 @@ function onFrame(delta, _time, { controllers, camera, player }) {
   const enemyGeo = bulletGroup?.userData?.enemyGeo;
   const enemyMat = bulletGroup?.userData?.enemyMat;
   if (enemyGroup && enemyGeo && enemyMat) {
-    // Spawn only in front of the player from the sky (funnel spread)
+    // Spawn only in front of the turret from the sky (funnel spread)
     enemySpawnTimer += delta;
     while (enemySpawnTimer >= ENEMY_SPAWN_INTERVAL) {
       enemySpawnTimer -= ENEMY_SPAWN_INTERVAL;
       const ppos = new THREE.Vector3();
       player.getWorldPosition(ppos);
-      // Player forward (yaw-only)
-      const pq = new THREE.Quaternion();
-      player.getWorldQuaternion(pq);
-      const eul = new THREE.Euler().setFromQuaternion(pq, 'YXZ');
-      const yaw = eul.y;
+      const tpos = new THREE.Vector3();
+      tankPivot.getWorldPosition(tpos);
+      // Turret forward (yaw-only)
+      const yaw = tankPivot.rotation.y;
       const fwd = new THREE.Vector3(Math.sin(yaw), 0, -Math.cos(yaw));
       const right = new THREE.Vector3(fwd.z, 0, -fwd.x).normalize();
       // Choose distance ahead and lateral angle within spread
       const ahead = ENEMY_AHEAD_MIN + Math.random() * (ENEMY_AHEAD_MAX - ENEMY_AHEAD_MIN);
       const spreadRad = THREE.MathUtils.degToRad(ENEMY_SPREAD_DEG);
-      const ang = (Math.random() * 2 - 1) * spreadRad; // [-spread, +spread]
+      const maxYaw = Math.min(spreadRad, TURRET_YAW_LIMIT);
+      const ang = (Math.random() * 2 - 1) * maxYaw; // within turret yaw reach
       // Lateral offset magnitude based on angle and ahead distance
       const lateral = Math.tan(ang) * ahead;
-      const start = ppos
+      const start = tpos
         .clone()
         .addScaledVector(fwd, ahead)
         .addScaledVector(right, lateral);
-      start.y = ppos.y + ENEMY_Y_OFFSET;
+      start.y = tpos.y + ENEMY_Y_OFFSET;
       // Direction toward current player position (downward + toward player)
       const dir = ppos.clone().sub(start).normalize();
       const enemy = new THREE.Mesh(enemyGeo, enemyMat);

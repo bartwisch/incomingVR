@@ -83,6 +83,12 @@ export async function init(setupScene = () => {}, onFrame = () => {}) {
 	// Start orientation: yaw 90°
 	player.rotation.y = Math.PI / 2;
 
+	// Ensure XR session does not override our intended start transform
+	renderer.xr.addEventListener('sessionstart', () => {
+		player.position.set(0, -1, 0.5);
+		player.rotation.y = Math.PI / 2;
+	});
+
 	const controllerModelFactory = new XRControllerModelFactory();
 	const controllers = {
 		left: null,
