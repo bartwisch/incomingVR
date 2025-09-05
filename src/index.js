@@ -16,7 +16,6 @@ let tankPivot = null;
 let turretPivot = null;
 let prevHandsAngle = null;
 let prevHandsMidFwd = null;
-let prevHandsAngleLock = null;
 let tankPosText = null;
 
 function setupScene({ scene, camera, renderer: _renderer, player: _player, controllers: _controllers }) {
@@ -281,29 +280,7 @@ function onFrame(delta, _time, { controllers, camera, player }) {
     prevHandsMidFwd = null;
   }
 
-  // LOCK mode (not bothHeld): allow two-hand yaw of turret around its center (Y axis)
-  if (!bothHeld && controllers.left && controllers.right && turretPivot) {
-    const lp = new THREE.Vector3();
-    const rp = new THREE.Vector3();
-    controllers.left.gripSpace.getWorldPosition(lp);
-    controllers.right.gripSpace.getWorldPosition(rp);
-    const v = rp.clone().sub(lp);
-    v.y = 0;
-    if (v.lengthSq() > 1e-6) {
-      const angle = Math.atan2(v.x, v.z);
-      if (prevHandsAngleLock == null) {
-        prevHandsAngleLock = angle;
-      } else {
-        let deltaAngle = angle - prevHandsAngleLock;
-        if (deltaAngle > Math.PI) deltaAngle -= 2 * Math.PI;
-        if (deltaAngle < -Math.PI) deltaAngle += 2 * Math.PI;
-        turretPivot.rotation.y += deltaAngle;
-        prevHandsAngleLock = angle;
-      }
-    }
-  } else {
-    prevHandsAngleLock = null;
-  }
+  // In LOCK mode, do not rotate the tank/turret by hand gestures.
 
   // Right thumbstick: rotate player yaw (camera turns)
   // Locked mode: block camera yaw entirely; only allow when UNLOCK (bothHeld)
