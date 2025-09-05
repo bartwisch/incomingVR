@@ -206,10 +206,21 @@ function setupScene({ scene, camera, renderer: _renderer, player: _player, contr
   camera.add(playerRotText);
 
   // Bullet prototype/shared
-  bulletGeo = new THREE.SphereGeometry(0.05, 16, 12);
+  bulletGeo = new THREE.SphereGeometry(BULLET_RADIUS, 16, 12);
   bulletMat = new THREE.MeshStandardMaterial({ color: 0xffaa00 });
   bulletGroup = new THREE.Group();
   scene.add(bulletGroup);
+
+  // Enemy placeholders: shared geometry/material and group
+  const enemyGeo = new THREE.IcosahedronGeometry(ENEMY_RADIUS, 0);
+  const enemyMat = new THREE.MeshStandardMaterial({ color: 0xff3333, metalness: 0.1, roughness: 0.8 });
+  const enemyGroup = new THREE.Group();
+  enemyGroup.name = 'enemies';
+  scene.add(enemyGroup);
+  // Stash factory and group for use in onFrame
+  bulletGroup.userData.enemyGeo = enemyGeo;
+  bulletGroup.userData.enemyMat = enemyMat;
+  bulletGroup.userData.enemyGroup = enemyGroup;
 
   // Audio: listener + load shot buffer (prefer shot1.mp3 with fallbacks)
   audioListener = new THREE.AudioListener();
@@ -242,10 +253,20 @@ const TURRET_PITCH_SPEED = 3.0; // pitch gain (controller tilt sensitivity, abso
 const TURRET_PITCH_MIN = 0; // 0 deg (no upward pitch)
 const TURRET_PITCH_MAX = Math.PI / 4; // +45 deg down
 const TURRET_YAW_LIMIT = Math.PI / 4; // +/-45 deg yaw limit
+const BULLET_RADIUS = 0.05; // meters
 const BULLET_SPEED = 10; // m/s
 const BULLET_TTL = 2.0; // seconds
 const FIRE_RATE = 3; // per second when both triggers held
 let fireTimer = 0;
+// Enemies
+const ENEMY_RADIUS = 0.3; // meters
+const ENEMY_SPEED = 2.5; // m/s toward player
+const ENEMY_SPAWN_INTERVAL = 1.5; // seconds
+const ENEMY_Y_OFFSET = 6.0; // spawn height above player
+const ENEMY_AHEAD_MIN = 6.0; // min distance ahead of player
+const ENEMY_AHEAD_MAX = 12.0; // max distance ahead of player
+const ENEMY_SPREAD_DEG = 35; // half-angle spread around forward
+let enemySpawnTimer = 0;
 
 function onFrame(delta, _time, { controllers, camera, player }) {
   // Determine unlock state (both squeezes held)
@@ -420,6 +441,78 @@ function onFrame(delta, _time, { controllers, camera, player }) {
     if (Math.abs(ry) > DEADZONE) {
       // Up on stick (-1) -> move up (+Y)
       player.position.y += (-ry) * PLAYER_ELEVATE_SPEED * delta;
+    }
+  }
+
+  // Enemies: spawn, move, and handle bullet collisions
+  const enemyGroup = bulletGroup?.userData?.enemyGroup;
+  const enemyGeo = bulletGroup?.userData?.enemyGeo;
+  const enemyMat = bulletGroup?.userData?.enemyMat;
+  if (enemyGroup && enemyGeo && enemyMat) {
+    // Spawn only in front of the player from the sky (funnel spread)
+    enemySpawnTimer += delta;
+    while (enemySpawnTimer >= ENEMY_SPAWN_INTERVAL) {
+      enemySpawnTimer -= ENEMY_SPAWN_INTERVAL;
+      const ppos = new THREE.Vector3();
+      player.getWorldPosition(ppos);
+      // Player forward (yaw-only)
+      const pq = new THREE.Quaternion();
+      player.getWorldQuaternion(pq);
+      const eul = new THREE.Euler().setFromQuaternion(pq, 'YXZ');
+      const yaw = eul.y;
+      const fwd = new THREE.Vector3(Math.sin(yaw), 0, -Math.cos(yaw));
+      const right = new THREE.Vector3(fwd.z, 0, -fwd.x).normalize();
+      // Choose distance ahead and lateral angle within spread
+      const ahead = ENEMY_AHEAD_MIN + Math.random() * (ENEMY_AHEAD_MAX - ENEMY_AHEAD_MIN);
+      const spreadRad = THREE.MathUtils.degToRad(ENEMY_SPREAD_DEG);
+      const ang = (Math.random() * 2 - 1) * spreadRad; // [-spread, +spread]
+      // Lateral offset magnitude based on angle and ahead distance
+      const lateral = Math.tan(ang) * ahead;
+      const start = ppos
+        .clone()
+        .addScaledVector(fwd, ahead)
+        .addScaledVector(right, lateral);
+      start.y = ppos.y + ENEMY_Y_OFFSET;
+      // Direction toward current player position (downward + toward player)
+      const dir = ppos.clone().sub(start).normalize();
+      const enemy = new THREE.Mesh(enemyGeo, enemyMat);
+      enemy.position.copy(start);
+      enemy.userData = { vel: dir.multiplyScalar(ENEMY_SPEED), hp: 1, radius: ENEMY_RADIUS };
+      enemyGroup.add(enemy);
+    }
+
+    // Move enemies and cull if too far/low
+    for (let i = enemyGroup.children.length - 1; i >= 0; i--) {
+      const e = enemyGroup.children[i];
+      e.position.addScaledVector(e.userData.vel, delta);
+      if (e.position.y < -2 || e.position.distanceTo(player.position) > 60) {
+        enemyGroup.remove(e);
+      }
+    }
+
+    // Bullet-enemy collisions (1 bullet = 1 life)
+    for (let bi = bullets.length - 1; bi >= 0; bi--) {
+      const b = bullets[bi];
+      const bp = b.position;
+      let hit = null;
+      for (let ei = enemyGroup.children.length - 1; ei >= 0; ei--) {
+        const e = enemyGroup.children[ei];
+        const sumR = BULLET_RADIUS + (e.userData.radius ?? ENEMY_RADIUS);
+        if (bp.distanceTo(e.position) <= sumR) {
+          hit = e;
+          e.userData.hp -= 1;
+          break;
+        }
+      }
+      if (hit) {
+        // remove bullet
+        bulletGroup.remove(b);
+        bullets.splice(bi, 1);
+        // remove enemy if dead
+        if (hit.userData.hp <= 0) {
+          enemyGroup.remove(hit);
+        }
+      }
     }
   }
 

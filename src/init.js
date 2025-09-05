@@ -57,7 +57,7 @@ export async function init(setupScene = () => {}, onFrame = () => {}) {
 		0.1,
 		100,
 	);
-	camera.position.set(0, 1.6, 3);
+	camera.position.set(0, 1.6, 0);
 
 	const controls = new OrbitControls(camera, container);
 	controls.target.set(0, 1.6, 0);
