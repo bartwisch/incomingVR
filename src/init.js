@@ -77,6 +77,9 @@ export async function init(setupScene = () => {}, onFrame = () => {}) {
 	scene.add(player);
 	player.add(camera);
 
+	// Start orientation: yaw +270° (90° + 180°)
+	player.rotation.y = (3 * Math.PI) / 2;
+
 	const controllerModelFactory = new XRControllerModelFactory();
 	const controllers = {
 		left: null,
