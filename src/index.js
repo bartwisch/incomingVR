@@ -15,7 +15,9 @@ let unlockText = null;
 let tankPivot = null;
 let turretPivot = null;
 let prevHandsAngle = null;
-let prevHandsMidY = null;
+// no integrator for pitch; map controller tilt directly each frame
+let wasUnlocked = false;
+let neutralPitch = null;
 let tankPosText = null;
 let tankRotText = null;
 let playerPosText = null;
@@ -220,9 +222,11 @@ function setupScene({ scene, camera, renderer: _renderer, player: _player, contr
 const DEADZONE = 0.15;
 const PLAYER_MOVE_SPEED = 2.0; // m/s for left-stick locomotion
 const PLAYER_ELEVATE_SPEED = 1.5; // m/s for right-stick vertical movement
-const TURRET_PITCH_SPEED = 6.0; // rad per meter pulled towards self (3x sensitivity)
-const TURRET_PITCH_MIN = -Math.PI / 4; // -45 deg
-const TURRET_PITCH_MAX = Math.PI / 4; // +45 deg
+const PLAYER_TURN_SPEED = Math.PI; // rad/s for right-stick yaw turn (180°/s)
+const TURRET_PITCH_SPEED = 3.0; // pitch gain (controller tilt sensitivity, absolute mapping)
+const TURRET_PITCH_MIN = 0; // 0 deg (no upward pitch)
+const TURRET_PITCH_MAX = Math.PI / 4; // +45 deg down
+const TURRET_YAW_LIMIT = Math.PI / 4; // +/-45 deg yaw limit
 const BULLET_SPEED = 10; // m/s
 const BULLET_TTL = 2.0; // seconds
 const FIRE_RATE = 3; // per second when both triggers held
@@ -245,6 +249,14 @@ function onFrame(delta, _time, { controllers, camera, player }) {
   if (unlockText) {
     unlockText.visible = bothHeld;
     if (unlockText.visible) unlockText.sync();
+  }
+  // Track unlock transition to calibrate neutral controller tilt
+  if (bothHeld && !wasUnlocked) {
+    wasUnlocked = true;
+    neutralPitch = null; // will be set after we read controller quaternions below
+  } else if (!bothHeld && wasUnlocked) {
+    wasUnlocked = false;
+    neutralPitch = null;
   }
 
   // Update tank position HUD
@@ -320,45 +332,60 @@ function onFrame(delta, _time, { controllers, camera, player }) {
         if (deltaAngle > Math.PI) deltaAngle -= 2 * Math.PI;
         if (deltaAngle < -Math.PI) deltaAngle += 2 * Math.PI;
         tankPivot.rotation.y += deltaAngle;
+        // Clamp yaw to [-45°, +45°]
+        if (tankPivot.rotation.y > TURRET_YAW_LIMIT) tankPivot.rotation.y = TURRET_YAW_LIMIT;
+        if (tankPivot.rotation.y < -TURRET_YAW_LIMIT) tankPivot.rotation.y = -TURRET_YAW_LIMIT;
         yawDeltaThisFrame = deltaAngle;
         prevHandsAngle = angle;
       }
     }
 
-    // Turret pitch: use midpoint HEIGHT (Y). Raising hands should aim down.
-    const mid = lp.clone().add(rp).multiplyScalar(0.5);
-    const sy = mid.y; // world Y height of hands midpoint
-    if (prevHandsMidY == null) {
-      prevHandsMidY = sy;
-    } else if (turretPivot) {
-      const deltaY = sy - prevHandsMidY; // >0 when hands rise
-      // Skip pitch if we applied notable yaw this frame to avoid cross-coupling.
-      const YAW_EPS = 1e-3;
-      if (Math.abs(yawDeltaThisFrame) < YAW_EPS) {
-        // Rising hands (deltaY>0) => rotate X negative to shoot down
-        turretPivot.rotation.x += (-deltaY) * TURRET_PITCH_SPEED;
-        // Clamp pitch
-        if (turretPivot.rotation.x > TURRET_PITCH_MAX) turretPivot.rotation.x = TURRET_PITCH_MAX;
-        if (turretPivot.rotation.x < TURRET_PITCH_MIN) turretPivot.rotation.x = TURRET_PITCH_MIN;
-      }
-      prevHandsMidY = sy;
+    // Turret pitch: use controller orientation pitch (average of both controllers)
+    const qL = new THREE.Quaternion();
+    const qR = new THREE.Quaternion();
+    const leftSource = controllers.left.raySpace || controllers.left.gripSpace;
+    const rightSource = controllers.right.raySpace || controllers.right.gripSpace;
+    leftSource.getWorldQuaternion(qL);
+    rightSource.getWorldQuaternion(qR);
+    const fL = new THREE.Vector3(0, 0, -1).applyQuaternion(qL);
+    const fR = new THREE.Vector3(0, 0, -1).applyQuaternion(qR);
+    const pitchFromFwd = (f) => Math.atan2(-f.y, Math.sqrt(f.x * f.x + f.z * f.z));
+    const avgPitch = (pitchFromFwd(fL) + pitchFromFwd(fR)) * 0.5; // rad; down is positive
+
+    // Set neutral baseline on the first unlocked frame we have readings
+    if (neutralPitch == null && wasUnlocked) {
+      neutralPitch = avgPitch;
+    }
+
+    if (turretPivot) {
+      // Map absolute controller tilt relative to neutral baseline (no accumulation)
+      const relPitch = avgPitch - neutralPitch; // 0 at neutral
+      const targetX = THREE.MathUtils.clamp(relPitch * TURRET_PITCH_SPEED, TURRET_PITCH_MIN, TURRET_PITCH_MAX);
+      turretPivot.rotation.x = targetX;
     }
   } else {
     // reset tracking when not both held
     prevHandsAngle = null;
-    prevHandsMidY = null;
+    // nothing to reset for direct mapping
   }
 
   // In LOCK mode, do not rotate the tank/turret by hand gestures.
 
-  // Right thumbstick: change player height (Y position)
+  // Right thumbstick: rotate player yaw (X axis) and change height (Y)
   if (controllers.right && player) {
     const gp = controllers.right.gamepad;
+    let rx = 0;
     let ry = 0;
     if (gp && typeof gp.getAxis === 'function') {
+      try { rx = gp.getAxis(XR_AXES.THUMBSTICK_X) ?? 0; } catch { rx = 0; }
       try { ry = gp.getAxis(XR_AXES.THUMBSTICK_Y) ?? 0; } catch { ry = 0; }
     } else if (gp && gp.gamepad && Array.isArray(gp.gamepad.axes)) {
+      rx = gp.gamepad.axes[2] ?? 0;
       ry = gp.gamepad.axes[3] ?? 0;
+    }
+    if (Math.abs(rx) > DEADZONE) {
+      // Right/left on stick -> rotate player around Y
+      player.rotation.y += rx * PLAYER_TURN_SPEED * delta;
     }
     if (Math.abs(ry) > DEADZONE) {
       // Up on stick (-1) -> move up (+Y)
