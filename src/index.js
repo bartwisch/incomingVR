@@ -15,7 +15,7 @@ let unlockText = null;
 let tankPivot = null;
 let turretPivot = null;
 let prevHandsAngle = null;
-let prevHandsMidFwd = null;
+let prevHandsMidY = null;
 let tankPosText = null;
 let tankRotText = null;
 let playerPosText = null;
@@ -325,40 +325,28 @@ function onFrame(delta, _time, { controllers, camera, player }) {
       }
     }
 
-    // Turret pitch: measure along PLAYER yaw-forward on XZ (ignore head pitch)
+    // Turret pitch: use midpoint HEIGHT (Y). Raising hands should aim down.
     const mid = lp.clone().add(rp).multiplyScalar(0.5);
-    const playerQuat = new THREE.Quaternion();
-    const playerPos = new THREE.Vector3();
-    if (player) player.getWorldQuaternion(playerQuat);
-    if (player) player.getWorldPosition(playerPos);
-    const eul = new THREE.Euler().setFromQuaternion(playerQuat, 'YXZ');
-    const yaw = eul.y;
-    const playerFwd = new THREE.Vector3(Math.sin(yaw), 0, -Math.cos(yaw));
-    const midXZ = mid.clone();
-    midXZ.y = 0;
-    const playerPosXZ = playerPos.clone();
-    playerPosXZ.y = 0;
-    const s = midXZ.sub(playerPosXZ).dot(playerFwd); // signed forward distance from player on XZ
-    if (prevHandsMidFwd == null) {
-      prevHandsMidFwd = s;
+    const sy = mid.y; // world Y height of hands midpoint
+    if (prevHandsMidY == null) {
+      prevHandsMidY = sy;
     } else if (turretPivot) {
-      let deltaS = s - prevHandsMidFwd; // pulling towards self => deltaS negative
-      // If we significantly changed yaw this frame, treat it as a pure yaw gesture
-      // and do not apply pitch to avoid cross-coupling.
+      const deltaY = sy - prevHandsMidY; // >0 when hands rise
+      // Skip pitch if we applied notable yaw this frame to avoid cross-coupling.
       const YAW_EPS = 1e-3;
       if (Math.abs(yawDeltaThisFrame) < YAW_EPS) {
-        // Inverted pitch: pull (deltaS<0) lowers turret (negative X rotation)
-        turretPivot.rotation.x += (deltaS) * TURRET_PITCH_SPEED;
+        // Rising hands (deltaY>0) => rotate X negative to shoot down
+        turretPivot.rotation.x += (-deltaY) * TURRET_PITCH_SPEED;
         // Clamp pitch
         if (turretPivot.rotation.x > TURRET_PITCH_MAX) turretPivot.rotation.x = TURRET_PITCH_MAX;
         if (turretPivot.rotation.x < TURRET_PITCH_MIN) turretPivot.rotation.x = TURRET_PITCH_MIN;
       }
-      prevHandsMidFwd = s;
+      prevHandsMidY = sy;
     }
   } else {
     // reset tracking when not both held
     prevHandsAngle = null;
-    prevHandsMidFwd = null;
+    prevHandsMidY = null;
   }
 
   // In LOCK mode, do not rotate the tank/turret by hand gestures.
