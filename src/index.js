@@ -21,6 +21,7 @@ let neutralPitch = null;
 let tankPosText = null;
 let tankRotText = null;
 let playerPosText = null;
+let playerRotText = null;
 
 // Shooting state
 let bulletGroup = null;
@@ -190,6 +191,19 @@ function setupScene({ scene, camera, renderer: _renderer, player: _player, contr
   playerPosText.material.depthWrite = false;
   camera.add(playerPosText);
 
+  // HUD: display player rotation (yaw/pitch/roll in degrees)
+  playerRotText = new Text();
+  playerRotText.text = 'Player Rot: yaw=0 pitch=0 roll=0';
+  playerRotText.fontSize = 0.06;
+  playerRotText.color = 0xffffff;
+  playerRotText.anchorX = 'left';
+  playerRotText.anchorY = 'top';
+  playerRotText.position.set(-0.6, 0.37, -1.2);
+  playerRotText.renderOrder = 1000;
+  playerRotText.material.depthTest = false;
+  playerRotText.material.depthWrite = false;
+  camera.add(playerRotText);
+
   // Bullet prototype/shared
   bulletGeo = new THREE.SphereGeometry(0.05, 16, 12);
   bulletMat = new THREE.MeshStandardMaterial({ color: 0xffaa00 });
@@ -282,6 +296,18 @@ function onFrame(delta, _time, { controllers, camera, player }) {
     player.getWorldPosition(p);
     playerPosText.text = `Player: x=${p.x.toFixed(2)} y=${p.y.toFixed(2)} z=${p.z.toFixed(2)}`;
     playerPosText.sync();
+  }
+
+  // Update player rotation HUD
+  if (playerRotText && player) {
+    const q = new THREE.Quaternion();
+    player.getWorldQuaternion(q);
+    const e = new THREE.Euler().setFromQuaternion(q, 'YXZ');
+    const yawDeg = THREE.MathUtils.radToDeg(e.y);
+    const pitchDeg = THREE.MathUtils.radToDeg(e.x);
+    const rollDeg = THREE.MathUtils.radToDeg(e.z);
+    playerRotText.text = `Player Rot: yaw=${yawDeg.toFixed(0)}° pitch=${pitchDeg.toFixed(0)}° roll=${rollDeg.toFixed(0)}°`;
+    playerRotText.sync();
   }
 
   if (controllers.left && player && camera) {
