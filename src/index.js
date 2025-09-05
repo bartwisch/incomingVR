@@ -173,7 +173,7 @@ function setupScene({ scene, camera, renderer: _renderer, player: _player, contr
 const DEADZONE = 0.15;
 const PLAYER_MOVE_SPEED = 2.0; // m/s for left-stick locomotion
 const PLAYER_TURN_SPEED = 2.5; // rad/s yaw for right-stick turn
-const TURRET_PITCH_SPEED = 1.0; // rad per meter pulled towards self
+const TURRET_PITCH_SPEED = 2.0; // rad per meter pulled towards self (doubled sensitivity)
 const TURRET_PITCH_MIN = -Math.PI / 4; // -45 deg
 const TURRET_PITCH_MAX = Math.PI / 4; // +45 deg
 
