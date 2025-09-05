@@ -126,6 +126,9 @@ export async function init(setupScene = () => {}, onFrame = () => {}) {
 		controllers,
 	};
 
+	// Expose for automated tests (Puppeteer)
+	window.__app = globals;
+
 	setupScene(globals);
 
 	const clock = new THREE.Clock();
