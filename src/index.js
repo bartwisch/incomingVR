@@ -18,6 +18,7 @@ let prevHandsAngle = null;
 let prevHandsMidFwd = null;
 let tankPosText = null;
 let tankRotText = null;
+let playerPosText = null;
 
 // Shooting state
 let bulletGroup = null;
@@ -174,6 +175,19 @@ function setupScene({ scene, camera, renderer: _renderer, player: _player, contr
   tankRotText.material.depthWrite = false;
   camera.add(tankRotText);
 
+  // HUD: display player world position
+  playerPosText = new Text();
+  playerPosText.text = 'Player: x=0.00 y=0.00 z=0.00';
+  playerPosText.fontSize = 0.06;
+  playerPosText.color = 0xffffff;
+  playerPosText.anchorX = 'left';
+  playerPosText.anchorY = 'top';
+  playerPosText.position.set(-0.6, 0.43, -1.2);
+  playerPosText.renderOrder = 1000;
+  playerPosText.material.depthTest = false;
+  playerPosText.material.depthWrite = false;
+  camera.add(playerPosText);
+
   // Bullet prototype/shared
   bulletGeo = new THREE.SphereGeometry(0.05, 16, 12);
   bulletMat = new THREE.MeshStandardMaterial({ color: 0xffaa00 });
@@ -206,12 +220,12 @@ function setupScene({ scene, camera, renderer: _renderer, player: _player, contr
 const DEADZONE = 0.15;
 const PLAYER_MOVE_SPEED = 2.0; // m/s for left-stick locomotion
 const PLAYER_ELEVATE_SPEED = 1.5; // m/s for right-stick vertical movement
-const TURRET_PITCH_SPEED = 2.0; // rad per meter pulled towards self (doubled sensitivity)
+const TURRET_PITCH_SPEED = 6.0; // rad per meter pulled towards self (3x sensitivity)
 const TURRET_PITCH_MIN = -Math.PI / 4; // -45 deg
 const TURRET_PITCH_MAX = Math.PI / 4; // +45 deg
 const BULLET_SPEED = 10; // m/s
 const BULLET_TTL = 2.0; // seconds
-const FIRE_RATE = 10; // per second when both triggers held
+const FIRE_RATE = 3; // per second when both triggers held
 let fireTimer = 0;
 
 function onFrame(delta, _time, { controllers, camera, player }) {
@@ -248,6 +262,14 @@ function onFrame(delta, _time, { controllers, camera, player }) {
     const rollDeg = THREE.MathUtils.radToDeg(turretPivot.rotation.z);
     tankRotText.text = `Rot: yaw=${yawDeg.toFixed(0)}° pitch=${pitchDeg.toFixed(0)}° roll=${rollDeg.toFixed(0)}°`;
     tankRotText.sync();
+  }
+
+  // Update player position HUD
+  if (playerPosText && player) {
+    const p = new THREE.Vector3();
+    player.getWorldPosition(p);
+    playerPosText.text = `Player: x=${p.x.toFixed(2)} y=${p.y.toFixed(2)} z=${p.z.toFixed(2)}`;
+    playerPosText.sync();
   }
 
   if (controllers.left && player && camera) {
@@ -301,7 +323,8 @@ function onFrame(delta, _time, { controllers, camera, player }) {
       }
     }
 
-    // Turret pitch: use midpoint movement along camera forward
+    // Turret pitch: use midpoint movement along CAMERA forward
+    // This makes pitch relative to HMD, reducing unintended motion from head translation.
     const mid = lp.clone().add(rp).multiplyScalar(0.5);
     const camFwd = new THREE.Vector3();
     camera.getWorldDirection(camFwd);
@@ -313,8 +336,8 @@ function onFrame(delta, _time, { controllers, camera, player }) {
       prevHandsMidFwd = s;
     } else if (turretPivot) {
       let deltaS = s - prevHandsMidFwd; // pulling towards self => deltaS negative
-      // Apply pitch: pull (deltaS<0) raises turret (positive X rotation)
-      turretPivot.rotation.x += (-deltaS) * TURRET_PITCH_SPEED;
+      // Inverted pitch: pull (deltaS<0) lowers turret (negative X rotation)
+      turretPivot.rotation.x += (deltaS) * TURRET_PITCH_SPEED;
       // Clamp pitch
       if (turretPivot.rotation.x > TURRET_PITCH_MAX) turretPivot.rotation.x = TURRET_PITCH_MAX;
       if (turretPivot.rotation.x < TURRET_PITCH_MIN) turretPivot.rotation.x = TURRET_PITCH_MIN;

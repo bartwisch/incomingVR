@@ -77,6 +77,9 @@ export async function init(setupScene = () => {}, onFrame = () => {}) {
 	scene.add(player);
 	player.add(camera);
 
+	// Start a bit further from the model on Z
+	player.position.set(0, 0, 2);
+
 	// Start orientation: yaw +270° (90° + 180°)
 	player.rotation.y = (3 * Math.PI) / 2;
 
