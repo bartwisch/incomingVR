@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { XR_AXES, XR_BUTTONS } from 'gamepad-wrapper';
 import { Text } from 'troika-three-text';
 import { init } from './init.js';
+import { initMultiplayer } from './multiplayer.js';
 
 let playerPosText = null;
 let playerRotText = null;
@@ -228,6 +229,7 @@ function setupScene({ scene, camera }) {
 	audioLoader.load('assets/laser.ogg', (buffer) => {
 		laserBuffer = buffer;
 	});
+	initMultiplayer(scene, camera);
 }
 
 const DEADZONE = 0.15;
