@@ -176,6 +176,8 @@ const BULLET_TTL = 2.0; // seconds
 const FIRE_RATE = 3; // bullets per second per cannon
 let leftFireTimer = 0;
 let rightFireTimer = 0;
+let prevLeftFiring = false;
+let prevRightFiring = false;
 // Enemies
 const ENEMY_RADIUS = 0.3; // meters
 const ENEMY_SPEED = 2.5; // m/s toward player
@@ -367,14 +369,21 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 				controllers.right.gamepad.gamepad.buttons &&
 				controllers.right.gamepad.gamepad.buttons[0]?.pressed))
 	);
-	const leftFiring = leftTriggerDown || keyState.left;
-	const rightFiring = rightTriggerDown || keyState.right;
-	const interval = 1 / FIRE_RATE;
+        const leftFiring = leftTriggerDown || keyState.left;
+        const rightFiring = rightTriggerDown || keyState.right;
+        const interval = 1 / FIRE_RATE;
 
-	if (leftFiring && bulletGeo && bulletMat && bulletGroup && leftCannon) {
-		leftFireTimer += delta;
-		while (leftFireTimer >= interval) {
-			leftFireTimer -= interval;
+        if (leftFiring && !prevLeftFiring) {
+                leftFireTimer = interval;
+        }
+        if (rightFiring && !prevRightFiring) {
+                rightFireTimer = interval;
+        }
+
+        if (leftFiring && bulletGeo && bulletMat && bulletGroup && leftCannon) {
+                leftFireTimer += delta;
+                while (leftFireTimer >= interval) {
+                        leftFireTimer -= interval;
 			const start = new THREE.Vector3();
 			leftCannon.getWorldPosition(start);
 			const dir = aimTarget.clone().sub(start).normalize();
@@ -423,13 +432,16 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 			bulletGroup.add(mesh);
 			bullets.push(mesh);
 		}
-	} else {
-		rightFireTimer = 0;
-	}
+        } else {
+                rightFireTimer = 0;
+        }
 
-	for (let i = bullets.length - 1; i >= 0; i--) {
-		const b = bullets[i];
-		b.userData.ttl -= delta;
+        prevLeftFiring = leftFiring;
+        prevRightFiring = rightFiring;
+
+        for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                b.userData.ttl -= delta;
 		if (b.userData.ttl <= 0) {
 			bulletGroup.remove(b);
 			bullets.splice(i, 1);
