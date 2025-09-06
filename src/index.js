@@ -390,7 +390,7 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 			bulletGroup.remove(b);
 			bullets.splice(bi, 1);
 			if (hit.userData.hp <= 0) {
-				const ex = new THREE.Mesh(explosionGeo, explosionMat);
+				const ex = new THREE.Mesh(explosionGeo, explosionMat.clone());
 				ex.position.copy(hit.position);
 				ex.scale.setScalar(0.1);
 				ex.userData = {
