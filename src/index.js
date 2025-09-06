@@ -370,6 +370,7 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 			enemy.position.copy(start);
 			enemy.userData.vel = dir.multiplyScalar(ENEMY_SPEED);
 			enemy.userData.hp = 1;
+			enemy.userData.radius = ENEMY_RADIUS;
 			enemyGroup.add(enemy);
 		}
 	}
