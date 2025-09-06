@@ -130,3 +130,9 @@ dist
 .pnp.*
 
 .DS_Store
+ 
+# Local Codex/Code workspace metadata
+.code/
+
+# Local dev server runtime files
+.devserver.*

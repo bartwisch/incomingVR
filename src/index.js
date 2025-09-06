@@ -233,6 +233,8 @@ function setupScene({ scene, camera }) {
 const DEADZONE = 0.15;
 const PLAYER_MOVE_SPEED = 2.0; // m/s for left-stick locomotion
 const PLAYER_TURN_SPEED = Math.PI; // rad/s for right-stick yaw turn (180°/s)
+// Feature flag: left thumbstick locomotion
+const ENABLE_LEFT_LOCO = false;
 const BULLET_RADIUS = 0.05; // meters
 const BULLET_SPEED = 10; // m/s
 const BULLET_TTL = 2.0; // seconds
@@ -279,7 +281,8 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 		playerRotText.sync();
 	}
 
-	if (controllers.left && player && camera) {
+	// Left thumbstick locomotion (disabled via feature flag)
+	if (ENABLE_LEFT_LOCO && controllers.left && player && camera) {
 		// Left thumbstick: locomotion on XZ plane (forward/back + strafe)
 		const gp = controllers.left.gamepad;
 		let lx = 0;
@@ -316,7 +319,7 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 		}
 	}
 
-	// Right thumbstick: rotate player yaw
+	// Right thumbstick: rotate player yaw (no pitch), inverted direction
 	if (controllers.right && player) {
 		const gp = controllers.right.gamepad;
 		let rx = 0;
@@ -330,7 +333,8 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 			rx = gp.gamepad.axes[2] ?? 0;
 		}
 		if (Math.abs(rx) > DEADZONE) {
-			player.rotation.y += rx * PLAYER_TURN_SPEED * delta;
+			// Invert horizontal stick input and only affect yaw
+			player.rotation.y += -rx * PLAYER_TURN_SPEED * delta;
 		}
 	}
 
