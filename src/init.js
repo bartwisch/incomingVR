@@ -6,15 +6,14 @@
  */
 
 import * as THREE from 'three';
-
 import { XRDevice, metaQuest3 } from 'iwer';
-
 import { DevUI } from '@iwer/devui';
 import { GamepadWrapper } from 'gamepad-wrapper';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
+import { tickMultiplayer } from './multiplayer.js';
 
 export async function init(setupScene = () => {}, onFrame = () => {}) {
 	// iwer setup
@@ -147,6 +146,8 @@ export async function init(setupScene = () => {}, onFrame = () => {}) {
 	function animate() {
 		const delta = clock.getDelta();
 		const time = clock.getElapsedTime();
+		// Push periodic local state to multiplayer server (~20Hz inside module)
+		tickMultiplayer(performance.now());
 		Object.values(controllers).forEach((controller) => {
 			if (controller?.gamepad) {
 				controller.gamepad.update();

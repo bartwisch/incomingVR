@@ -2,7 +2,6 @@ const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const ESLintPlugin = require('eslint-webpack-plugin');
 const CopyPlugin = require('copy-webpack-plugin');
-const WebSocket = require('ws');
 
 module.exports = {
 	mode: 'development',
@@ -23,6 +22,8 @@ module.exports = {
 		// Attach a same-origin WebSocket endpoint for lightweight multiplayer
 		// Clients connect to wss://<host>:8081/players
 		setupMiddlewares: (middlewares, devServer) => {
+			// Lazy-require to avoid needing 'ws' for production builds
+			const WebSocket = require('ws');
 			if (!devServer || !devServer.server) return middlewares;
 
 			// Create a WS server bound to the existing HTTPS server

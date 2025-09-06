@@ -7,16 +7,16 @@
 
 import * as THREE from 'three';
 import { XR_AXES, XR_BUTTONS } from 'gamepad-wrapper';
+import { getPlayerCount, initMultiplayer } from './multiplayer.js';
 import { Text } from 'troika-three-text';
 import { init } from './init.js';
-import { startMultiplayer } from './multiplayer.js';
 
 let playerPosText = null;
 let playerRotText = null;
 let scoreText = null;
-let playersText = null;
+let playerCountText = null;
 let score = 0;
-let playersCount = 1; // default: single player
+// player count is derived from multiplayer client
 
 const HUD_COLOR = 0x00ff00;
 const HUD_FONT = '/assets/SpaceMono-Bold.ttf';
@@ -164,18 +164,18 @@ function setupScene({ scene, camera }) {
 	camera.add(scoreText);
 
 	// HUD: players-in-game display (top-right, below score)
-	playersText = new Text();
-	playersText.text = 'Players: 1';
-	playersText.fontSize = 0.06;
-	playersText.color = HUD_COLOR;
-	playersText.font = HUD_FONT;
-	playersText.anchorX = 'right';
-	playersText.anchorY = 'top';
-	playersText.position.set(0.6, 0.37, -1.2);
-	playersText.renderOrder = 1000;
-	playersText.material.depthTest = false;
-	playersText.material.depthWrite = false;
-	camera.add(playersText);
+	playerCountText = new Text();
+	playerCountText.text = 'Players: 1';
+	playerCountText.fontSize = 0.06;
+	playerCountText.color = HUD_COLOR;
+	playerCountText.font = HUD_FONT;
+	playerCountText.anchorX = 'right';
+	playerCountText.anchorY = 'top';
+	playerCountText.position.set(0.6, 0.37, -1.2);
+	playerCountText.renderOrder = 1000;
+	playerCountText.material.depthTest = false;
+	playerCountText.material.depthWrite = false;
+	camera.add(playerCountText);
 
 	// Bullet prototype/shared
 	bulletGeo = new THREE.SphereGeometry(BULLET_RADIUS, 16, 12);
@@ -246,6 +246,9 @@ function setupScene({ scene, camera }) {
 	audioLoader.load('assets/laser.ogg', (buffer) => {
 		laserBuffer = buffer;
 	});
+
+	// Start realtime multiplayer (same-origin WSS at /players)
+	initMultiplayer(scene, camera, player);
 }
 
 const DEADZONE = 0.15;
@@ -280,9 +283,9 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 		scoreText.sync();
 	}
 	// Update players-in-game HUD
-	if (playersText) {
-		playersText.text = `Players: ${playersCount}`;
-		playersText.sync();
+	if (playerCountText) {
+		playerCountText.text = `Players: ${getPlayerCount()}`;
+		playerCountText.sync();
 	}
 	// Update player position HUD
 	if (playerPosText && player) {
@@ -667,24 +670,3 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 }
 
 init(setupScene, onFrame);
-
-// Multiplayer presence: update HUD with live player count if a WS server is available
-startMultiplayer({
-	onPlayers: (n) => {
-		playersCount = n;
-	},
-});
-
-// Optional: external hooks to update player count without code changes
-// - window.setPlayersInGame(n): directly set numeric player count
-// - dispatchEvent(new CustomEvent('players:update', { detail: { count: n } }))
-//   to update via event without global function
-window.setPlayersInGame = (n) => {
-	const val = Number(n);
-	if (Number.isFinite(val)) playersCount = Math.max(0, Math.floor(val));
-};
-window.addEventListener('players:update', (e) => {
-	const n = e?.detail?.count;
-	const val = Number(n);
-	if (Number.isFinite(val)) playersCount = Math.max(0, Math.floor(val));
-});
