@@ -319,22 +319,67 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 		}
 	}
 
-	// Right thumbstick: rotate player yaw (no pitch), inverted direction
-	if (controllers.right && player) {
-		const gp = controllers.right.gamepad;
-		let rx = 0;
+	// Left thumbstick: rotate player yaw (no pitch), inverted direction
+	if (controllers.left && player) {
+		const gp = controllers.left.gamepad;
+		let lx = 0;
 		if (gp && typeof gp.getAxis === 'function') {
 			try {
-				rx = gp.getAxis(XR_AXES.THUMBSTICK_X) ?? 0;
+				lx = gp.getAxis(XR_AXES.THUMBSTICK_X) ?? 0;
 			} catch {
-				rx = 0;
+				lx = 0;
 			}
 		} else if (gp && gp.gamepad && Array.isArray(gp.gamepad.axes)) {
-			rx = gp.gamepad.axes[2] ?? 0;
+			lx = gp.gamepad.axes[2] ?? 0;
 		}
-		if (Math.abs(rx) > DEADZONE) {
+		if (Math.abs(lx) > DEADZONE) {
 			// Invert horizontal stick input and only affect yaw
-			player.rotation.y += -rx * PLAYER_TURN_SPEED * delta;
+			player.rotation.y += -lx * PLAYER_TURN_SPEED * delta;
+		}
+	}
+
+	// Both thumbsticks: rotate player yaw (no pitch), inverted direction
+	if (player) {
+		let yawDelta = 0;
+
+		// Right thumbstick
+		if (controllers.right) {
+			const gp = controllers.right.gamepad;
+			let rx = 0;
+			if (gp && typeof gp.getAxis === 'function') {
+				try {
+					rx = gp.getAxis(XR_AXES.THUMBSTICK_X) ?? 0;
+				} catch {
+					rx = 0;
+				}
+			} else if (gp && gp.gamepad && Array.isArray(gp.gamepad.axes)) {
+				rx = gp.gamepad.axes[2] ?? 0;
+			}
+			if (Math.abs(rx) > DEADZONE) {
+				yawDelta += -rx;
+			}
+		}
+
+		// Left thumbstick
+		if (controllers.left) {
+			const gp = controllers.left.gamepad;
+			let lx = 0;
+			if (gp && typeof gp.getAxis === 'function') {
+				try {
+					lx = gp.getAxis(XR_AXES.THUMBSTICK_X) ?? 0;
+				} catch {
+					lx = 0;
+				}
+			} else if (gp && gp.gamepad && Array.isArray(gp.gamepad.axes)) {
+				lx = gp.gamepad.axes[2] ?? 0;
+			}
+			if (Math.abs(lx) > DEADZONE) {
+				yawDelta += -lx;
+			}
+		}
+
+		if (yawDelta !== 0) {
+			player.rotation.y += yawDelta * PLAYER_TURN_SPEED * delta;
 		}
 	}
 
