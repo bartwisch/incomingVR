@@ -379,6 +379,9 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 		}
 
 		if (yawDelta !== 0) {
+			// Ensure both sticks rotate at the same max speed
+			// (do not double rotation when both are held)
+			yawDelta = THREE.MathUtils.clamp(yawDelta, -1, 1);
 			player.rotation.y += yawDelta * PLAYER_TURN_SPEED * delta;
 		}
 	}
