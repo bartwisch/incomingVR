@@ -19,6 +19,7 @@
 		"build": "webpack",
 		"dev": "webpack serve",
 		"test:puppeteer": "node scripts/puppeteer-smoke.js",
+		"test:puppeteer:multi": "node scripts/puppeteer-multi.js",
 		"format": "prettier --write ./src/**/*"
 	},
 	"dependencies": {
