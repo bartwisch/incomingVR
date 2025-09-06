@@ -200,7 +200,6 @@ const ENEMY_SPAWN_INTERVAL = 1.5; // seconds
 const ENEMY_Y_OFFSET = 6.0; // spawn height above player
 const ENEMY_AHEAD_MIN = 6.0; // min distance ahead of player
 const ENEMY_AHEAD_MAX = 12.0; // max distance ahead of player
-const ENEMY_SPREAD_DEG = 35; // half-angle spread around forward
 let enemySpawnTimer = 0;
 
 function onFrame(delta, _time, { controllers, camera, player }) {
@@ -301,31 +300,26 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 		enemySpawnTimer += delta;
 		while (enemySpawnTimer >= ENEMY_SPAWN_INTERVAL) {
 			enemySpawnTimer -= ENEMY_SPAWN_INTERVAL;
-			const ppos = new THREE.Vector3();
-			player.getWorldPosition(ppos);
-			const yaw = player.rotation.y;
-			const fwd = new THREE.Vector3(Math.sin(yaw), 0, -Math.cos(yaw));
-			const right = new THREE.Vector3(fwd.z, 0, -fwd.x).normalize();
-			const ahead =
-				ENEMY_AHEAD_MIN + Math.random() * (ENEMY_AHEAD_MAX - ENEMY_AHEAD_MIN);
-			const spreadRad = THREE.MathUtils.degToRad(ENEMY_SPREAD_DEG);
-			const ang = (Math.random() * 2 - 1) * spreadRad;
-			const lateral = Math.tan(ang) * ahead;
-			const start = ppos
-				.clone()
-				.addScaledVector(fwd, ahead)
-				.addScaledVector(right, lateral);
-			start.y = ppos.y + ENEMY_Y_OFFSET;
-			const dir = ppos.clone().sub(start).normalize();
-			const enemy = new THREE.Mesh(enemyGeo, enemyMat);
-			enemy.position.copy(start);
-			enemy.userData = {
-				vel: dir.multiplyScalar(ENEMY_SPEED),
-				hp: 1,
-				radius: ENEMY_RADIUS,
-			};
-			enemyGroup.add(enemy);
-		}
+                        const ppos = new THREE.Vector3();
+                        player.getWorldPosition(ppos);
+                        const fwd = new THREE.Vector3();
+                        camera.getWorldDirection(fwd);
+                        fwd.y = 0;
+                        fwd.normalize();
+                        const ahead =
+                                ENEMY_AHEAD_MIN + Math.random() * (ENEMY_AHEAD_MAX - ENEMY_AHEAD_MIN);
+                        const start = ppos.clone().addScaledVector(fwd, ahead);
+                        start.y = ppos.y + ENEMY_Y_OFFSET;
+                        const dir = ppos.clone().sub(start).normalize();
+                        const enemy = new THREE.Mesh(enemyGeo, enemyMat);
+                        enemy.position.copy(start);
+                        enemy.userData = {
+                                vel: dir.multiplyScalar(ENEMY_SPEED),
+                                hp: 1,
+                                radius: ENEMY_RADIUS,
+                        };
+                        enemyGroup.add(enemy);
+                }
 
 		for (let i = enemyGroup.children.length - 1; i >= 0; i--) {
 			const e = enemyGroup.children[i];
