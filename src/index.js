@@ -12,6 +12,8 @@ import { init } from './init.js';
 
 let playerPosText = null;
 let playerRotText = null;
+let scoreText = null;
+let score = 0;
 
 // Shooting state
 let bulletGroup = null;
@@ -116,11 +118,24 @@ function setupScene({ scene, camera }) {
 	playerRotText.color = 0xffffff;
 	playerRotText.anchorX = 'left';
 	playerRotText.anchorY = 'top';
-	playerRotText.position.set(-0.6, 0.37, -1.2);
-	playerRotText.renderOrder = 1000;
-	playerRotText.material.depthTest = false;
-	playerRotText.material.depthWrite = false;
-	camera.add(playerRotText);
+        playerRotText.position.set(-0.6, 0.37, -1.2);
+        playerRotText.renderOrder = 1000;
+        playerRotText.material.depthTest = false;
+        playerRotText.material.depthWrite = false;
+        camera.add(playerRotText);
+
+        // HUD: score display
+        scoreText = new Text();
+        scoreText.text = 'Score: 0';
+        scoreText.fontSize = 0.06;
+        scoreText.color = 0x00ff00;
+        scoreText.anchorX = 'right';
+        scoreText.anchorY = 'top';
+        scoreText.position.set(0.6, 0.43, -1.2);
+        scoreText.renderOrder = 1000;
+        scoreText.material.depthTest = false;
+        scoreText.material.depthWrite = false;
+        camera.add(scoreText);
 
 	// Bullet prototype/shared
 	bulletGeo = new THREE.SphereGeometry(BULLET_RADIUS, 16, 12);
@@ -189,11 +204,15 @@ const ENEMY_SPREAD_DEG = 35; // half-angle spread around forward
 let enemySpawnTimer = 0;
 
 function onFrame(delta, _time, { controllers, camera, player }) {
-	// Update player position HUD
-	if (playerPosText && player) {
-		const p = new THREE.Vector3();
-		player.getWorldPosition(p);
-		playerPosText.text = `Player: x=${p.x.toFixed(2)} y=${p.y.toFixed(2)} z=${p.z.toFixed(2)}`;
+        if (scoreText) {
+                scoreText.text = `Score: ${score}`;
+                scoreText.sync();
+        }
+        // Update player position HUD
+        if (playerPosText && player) {
+                const p = new THREE.Vector3();
+                player.getWorldPosition(p);
+                playerPosText.text = `Player: x=${p.x.toFixed(2)} y=${p.y.toFixed(2)} z=${p.z.toFixed(2)}`;
 		playerPosText.sync();
 	}
 
@@ -332,12 +351,13 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 			if (hit) {
 				bulletGroup.remove(b);
 				bullets.splice(bi, 1);
-				if (hit.userData.hp <= 0) {
-					enemyGroup.remove(hit);
-				}
-			}
-		}
-	}
+                                if (hit.userData.hp <= 0) {
+                                        enemyGroup.remove(hit);
+                                        score += 100;
+                                }
+                        }
+                }
+        }
 
 	const aimTarget = new THREE.Vector3();
 	if (crosshair) {
