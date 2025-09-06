@@ -15,6 +15,9 @@ let playerRotText = null;
 let scoreText = null;
 let score = 0;
 
+const HUD_COLOR = 0x00ff00;
+const HUD_FONT = '/assets/SpaceMono-Bold.ttf';
+
 // Shooting state
 let bulletGroup = null;
 let bulletGeo = null;
@@ -50,8 +53,9 @@ function setupScene({ scene, camera }) {
 			transparent: true,
 		}),
 	);
-	crosshair.position.set(0, 0, -2);
-	camera.add(crosshair);
+       crosshair.position.set(0, 0, -5);
+       crosshair.scale.set(2.5, 2.5, 2.5);
+       camera.add(crosshair);
 	const cannonGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.4, 8);
 	cannonGeo.rotateX(Math.PI / 2);
 	const cannonMat = new THREE.MeshStandardMaterial({ color: 0x888888 });
@@ -105,42 +109,45 @@ function setupScene({ scene, camera }) {
 
 	// HUD: display player world position
 	playerPosText = new Text();
-	playerPosText.text = 'Player: x=0.00 y=0.00 z=0.00';
-	playerPosText.fontSize = 0.06;
-	playerPosText.color = 0xffffff;
-	playerPosText.anchorX = 'left';
-	playerPosText.anchorY = 'top';
-	playerPosText.position.set(-0.6, 0.43, -1.2);
-	playerPosText.renderOrder = 1000;
-	playerPosText.material.depthTest = false;
-	playerPosText.material.depthWrite = false;
-	camera.add(playerPosText);
+playerPosText.text = 'Player: x=0.00 y=0.00 z=0.00';
+playerPosText.fontSize = 0.06;
+playerPosText.color = HUD_COLOR;
+playerPosText.font = HUD_FONT;
+playerPosText.anchorX = 'left';
+playerPosText.anchorY = 'top';
+playerPosText.position.set(-0.6, 0.43, -1.2);
+playerPosText.renderOrder = 1000;
+playerPosText.material.depthTest = false;
+playerPosText.material.depthWrite = false;
+camera.add(playerPosText);
 
 	// HUD: display player rotation (yaw/pitch/roll in degrees)
 	playerRotText = new Text();
-	playerRotText.text = 'Player Rot: yaw=0 pitch=0 roll=0';
-	playerRotText.fontSize = 0.06;
-	playerRotText.color = 0xffffff;
-	playerRotText.anchorX = 'left';
-	playerRotText.anchorY = 'top';
-        playerRotText.position.set(-0.6, 0.37, -1.2);
-        playerRotText.renderOrder = 1000;
-        playerRotText.material.depthTest = false;
-        playerRotText.material.depthWrite = false;
-        camera.add(playerRotText);
+playerRotText.text = 'Player Rot: yaw=0 pitch=0 roll=0';
+playerRotText.fontSize = 0.06;
+playerRotText.color = HUD_COLOR;
+playerRotText.font = HUD_FONT;
+playerRotText.anchorX = 'left';
+playerRotText.anchorY = 'top';
+playerRotText.position.set(-0.6, 0.37, -1.2);
+playerRotText.renderOrder = 1000;
+playerRotText.material.depthTest = false;
+playerRotText.material.depthWrite = false;
+camera.add(playerRotText);
 
         // HUD: score display
         scoreText = new Text();
-        scoreText.text = 'Score: 0';
-        scoreText.fontSize = 0.06;
-        scoreText.color = 0x00ff00;
-        scoreText.anchorX = 'right';
-        scoreText.anchorY = 'top';
-        scoreText.position.set(0.6, 0.43, -1.2);
-        scoreText.renderOrder = 1000;
-        scoreText.material.depthTest = false;
-        scoreText.material.depthWrite = false;
-        camera.add(scoreText);
+scoreText.text = 'Score: 0';
+scoreText.fontSize = 0.06;
+scoreText.color = HUD_COLOR;
+scoreText.font = HUD_FONT;
+scoreText.anchorX = 'right';
+scoreText.anchorY = 'top';
+scoreText.position.set(0.6, 0.43, -1.2);
+scoreText.renderOrder = 1000;
+scoreText.material.depthTest = false;
+scoreText.material.depthWrite = false;
+camera.add(scoreText);
 
 	// Bullet prototype/shared
         bulletGeo = new THREE.SphereGeometry(BULLET_RADIUS, 16, 12);
@@ -345,9 +352,7 @@ if (enemyGroup && enemyGeo && enemyMats) {
         };
         enemyGroup.add(enemy);
     }
-}
-
-		for (let i = enemyGroup.children.length - 1; i >= 0; i--) {
+for (let i = enemyGroup.children.length - 1; i >= 0; i--) {
 			const e = enemyGroup.children[i];
 			e.position.addScaledVector(e.userData.vel, delta);
 			if (e.position.y < -2 || e.position.distanceTo(player.position) > 60) {
@@ -356,7 +361,7 @@ if (enemyGroup && enemyGeo && enemyMats) {
 		}
 
 		for (let bi = bullets.length - 1; bi >= 0; bi--) {
-			const b = bullets[bi];
+					const b = bullets[bi];
 			const bp = b.position;
 			let hit = null;
 			for (let ei = enemyGroup.children.length - 1; ei >= 0; ei--) {
@@ -369,7 +374,7 @@ if (enemyGroup && enemyGeo && enemyMats) {
 				}
 			}
 			if (hit) {
-				bulletGroup.remove(b);
+							bulletGroup.remove(b);
 				bullets.splice(bi, 1);
                                 if (hit.userData.hp <= 0) {
                                         enemyGroup.remove(hit);
@@ -523,14 +528,14 @@ if (enemyGroup && enemyGeo && enemyMats) {
         prevLeftFiring = leftFiring;
         prevRightFiring = rightFiring;
 
-        for (let i = bullets.length - 1; i >= 0; i--) {
-                const b = bullets[i];
-                b.userData.ttl -= delta;
+	for (let i = bullets.length - 1; i >= 0; i--) {
+		const b = bullets[i];
+		b.userData.ttl -= delta;
 		if (b.userData.ttl <= 0) {
 			bulletGroup.remove(b);
 			bullets.splice(i, 1);
 			continue;
-		}
+	}
 		const deltaMove = b.userData.vel.clone().multiplyScalar(delta);
 		b.position.add(deltaMove);
 	}
