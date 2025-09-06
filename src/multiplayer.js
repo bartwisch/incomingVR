@@ -45,6 +45,7 @@ function makeAvatar(name, color = 0x888888) {
 function onMessage(msg) {
   switch (msg.type) {
     case 'welcome': {
+      console.log('[mp] welcome', (msg.players || []).length, 'existing players');
       // Create avatars for existing players
       (msg.players || []).forEach((p) => {
         if (!remotePlayers.has(p.id)) {
@@ -61,6 +62,7 @@ function onMessage(msg) {
       });
       break; }
     case 'join': {
+      console.log('[mp] join', msg?.player?.id || 'unknown');
       const p = msg.player;
       if (p && !remotePlayers.has(p.id)) {
         const avatar = makeAvatar(p.name, p.color);
@@ -77,6 +79,7 @@ function onMessage(msg) {
       }
       break; }
     case 'leave': {
+      console.log('[mp] leave', msg?.id);
       const avatar = remotePlayers.get(msg.id);
       if (avatar) {
         world.scene.remove(avatar.group);
@@ -93,9 +96,11 @@ export function initMultiplayer(scene, _camera, player) {
   world.player = player;
   try { socket && socket.close(); } catch {}
   socket = new WebSocket(wsUrl());
+  socket.onopen = () => { console.log('[mp] open'); };
   socket.onmessage = (ev) => {
     try { onMessage(JSON.parse(ev.data)); } catch {}
   };
+  socket.onerror = (e) => { console.error('[mp] error', e?.message || e); };
   socket.onclose = () => {
     // cleanup remotes on disconnect
     for (const { group } of remotePlayers.values()) world.scene.remove(group);
@@ -116,5 +121,10 @@ export function tickMultiplayer(timeMs) {
 
 export function getPlayerCount() {
   // remote + local self (approx.)
+  return remotePlayers.size + 1;
+}
+
+// Test helper for introspection in headless runs
+export function __debugPlayerCount() {
   return remotePlayers.size + 1;
 }

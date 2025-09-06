@@ -44,6 +44,12 @@ async function playersText(page) {
   });
 }
 
+async function debugCount(page) {
+  return page.evaluate(() => {
+    try { return typeof window.__getPlayerCount === 'function' ? window.__getPlayerCount() : null; } catch { return null; }
+  });
+}
+
 async function run() {
   const server = await startDevServer();
   const browser = await puppeteer.launch({
@@ -88,6 +94,13 @@ async function run() {
         },
         { timeout: 15000 },
       );
+
+    // Quick diagnostic: poll current HUD text a few times
+    for (let i = 0; i < 5; i++) {
+      const [t1, t2, d1, d2] = await Promise.all([playersText(p1), playersText(p2), debugCount(p1), debugCount(p2)]);
+      console.log(`[poll ${i}]`, t1, '/', t2, '| debug', d1, '/', d2);
+      await new Promise((r) => setTimeout(r, 1000));
+    }
 
     await Promise.all([waitForPlayers2(p1), waitForPlayers2(p2)]);
 

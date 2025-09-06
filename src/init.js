@@ -139,11 +139,17 @@ export async function init(setupScene = () => {}, onFrame = () => {}) {
 
 	// Expose for automated tests (Puppeteer)
 	window.__app = globals;
+	// Expose multiplayer count helper for tests
+	try { window.__getPlayerCount = (window.__getPlayerCount || (await import('./multiplayer.js')).getPlayerCount); } catch {}
 
 	setupScene(globals);
 
 	const clock = new THREE.Clock();
 	function animate() {
+		if (!window.__didLogAnimate) {
+			console.log('[anim] start');
+			window.__didLogAnimate = true;
+		}
 		const delta = clock.getDelta();
 		const time = clock.getElapsedTime();
 		// Push periodic local state to multiplayer server (~20Hz inside module)

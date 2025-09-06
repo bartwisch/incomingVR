@@ -284,7 +284,11 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 	}
 	// Update players-in-game HUD
 	if (playerCountText) {
-		playerCountText.text = `Players: ${getPlayerCount()}`;
+		const txt = `Players: ${getPlayerCount()}`;
+		if (playerCountText.text !== txt) {
+			console.log('[hud] players ->', txt);
+		}
+		playerCountText.text = txt;
 		playerCountText.sync();
 	}
 	// Update player position HUD
