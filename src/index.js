@@ -20,6 +20,7 @@ let bulletGroup = null;
 let bulletGeo = null;
 let bulletMat = null;
 let laserMat = null;
+let machineMat = null;
 const bullets = [];
 let audioListener = null;
 let cannonBuffer = null;
@@ -28,6 +29,9 @@ let crosshair = null;
 let leftCannon = null;
 let rightCannon = null;
 const weaponType = { left: 'cannon', right: 'cannon' };
+const WEAPON_TYPES = ['cannon', 'laser', 'machinegun'];
+const nextWeapon = (current) =>
+        WEAPON_TYPES[(WEAPON_TYPES.indexOf(current) + 1) % WEAPON_TYPES.length];
 let prevLeftSwitch = false;
 let prevRightSwitch = false;
 const keyState = { left: false, right: false };
@@ -149,6 +153,7 @@ function setupScene({ scene, camera }) {
                 color: 0x00ffff,
                 emissive: 0x00ffff,
         });
+        machineMat = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
         bulletGroup = new THREE.Group();
         scene.add(bulletGroup);
 
@@ -206,6 +211,7 @@ const BULLET_RADIUS = 0.05; // meters
 const BULLET_SPEED = 10; // m/s
 const BULLET_TTL = 2.0; // seconds
 const FIRE_RATE = 3; // bullets per second per cannon
+const MACHINE_GUN_RATE = 10; // bullets per second for machine gun
 let leftFireTimer = 0;
 let rightFireTimer = 0;
 let prevLeftFiring = false;
@@ -377,16 +383,14 @@ if (enemyGroup && enemyGeo && enemyMats) {
                                 }
                         }
                 }
-        }
-
-	const aimTarget = new THREE.Vector3();
+        const aimTarget = new THREE.Vector3();
         if (crosshair) {
                 crosshair.getWorldPosition(aimTarget);
                 leftCannon?.lookAt(aimTarget);
                 rightCannon?.lookAt(aimTarget);
         }
 
-        // Weapon switching: BUTTON_1 (A/X) toggles per controller
+        // Weapon switching: BUTTON_1 (A/X) cycles per controller
         const leftSwitchDown = !!(
                 controllers.left &&
                 controllers.left.gamepad &&
@@ -414,12 +418,10 @@ if (enemyGroup && enemyGeo && enemyMats) {
                                 controllers.right.gamepad.gamepad.buttons[4]?.pressed))
         );
         if (leftSwitchDown && !prevLeftSwitch) {
-                weaponType.left =
-                        weaponType.left === 'cannon' ? 'laser' : 'cannon';
+                weaponType.left = nextWeapon(weaponType.left);
         }
         if (rightSwitchDown && !prevRightSwitch) {
-                weaponType.right =
-                        weaponType.right === 'cannon' ? 'laser' : 'cannon';
+                weaponType.right = nextWeapon(weaponType.right);
         }
         prevLeftSwitch = leftSwitchDown;
         prevRightSwitch = rightSwitchDown;
@@ -449,22 +451,36 @@ if (enemyGroup && enemyGeo && enemyMats) {
 	);
         const leftFiring = leftTriggerDown || keyState.left;
         const rightFiring = rightTriggerDown || keyState.right;
-        const interval = 1 / FIRE_RATE;
+        const leftInterval =
+                1 /
+                (weaponType.left === 'machinegun'
+                        ? MACHINE_GUN_RATE
+                        : FIRE_RATE);
+        const rightInterval =
+                1 /
+                (weaponType.right === 'machinegun'
+                        ? MACHINE_GUN_RATE
+                        : FIRE_RATE);
 
         if (leftFiring && !prevLeftFiring) {
-                leftFireTimer = interval;
+                leftFireTimer = leftInterval;
         }
         if (rightFiring && !prevRightFiring) {
-                rightFireTimer = interval;
+                rightFireTimer = rightInterval;
         }
 
         if (leftFiring && bulletGeo && bulletGroup && leftCannon) {
-                const isLaser = weaponType.left === 'laser';
-                const mat = isLaser ? laserMat : bulletMat;
-                const buffer = isLaser ? laserBuffer : cannonBuffer;
+                const type = weaponType.left;
+                const mat =
+                        type === 'laser'
+                                ? laserMat
+                                : type === 'machinegun'
+                                        ? machineMat
+                                        : bulletMat;
+                const buffer = type === 'laser' ? laserBuffer : cannonBuffer;
                 leftFireTimer += delta;
-                while (leftFireTimer >= interval) {
-                        leftFireTimer -= interval;
+                while (leftFireTimer >= leftInterval) {
+                        leftFireTimer -= leftInterval;
                         const start = new THREE.Vector3();
                         leftCannon.getWorldPosition(start);
                         const dir = aimTarget.clone().sub(start).normalize();
@@ -490,12 +506,17 @@ if (enemyGroup && enemyGeo && enemyMats) {
         }
 
         if (rightFiring && bulletGeo && bulletGroup && rightCannon) {
-                const isLaser = weaponType.right === 'laser';
-                const mat = isLaser ? laserMat : bulletMat;
-                const buffer = isLaser ? laserBuffer : cannonBuffer;
+                const type = weaponType.right;
+                const mat =
+                        type === 'laser'
+                                ? laserMat
+                                : type === 'machinegun'
+                                        ? machineMat
+                                        : bulletMat;
+                const buffer = type === 'laser' ? laserBuffer : cannonBuffer;
                 rightFireTimer += delta;
-                while (rightFireTimer >= interval) {
-                        rightFireTimer -= interval;
+                while (rightFireTimer >= rightInterval) {
+                        rightFireTimer -= rightInterval;
                         const start = new THREE.Vector3();
                         rightCannon.getWorldPosition(start);
                         const dir = aimTarget.clone().sub(start).normalize();
