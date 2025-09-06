@@ -20,10 +20,22 @@ let bulletMat = null;
 const bullets = [];
 let audioListener = null;
 let shotBuffer = null;
+let crosshair = null;
+let leftCannon = null;
+let rightCannon = null;
+const keyState = { left: false, right: false };
+window.addEventListener('keydown', (e) => {
+	if (e.code === 'KeyZ') keyState.left = true;
+	if (e.code === 'KeyX') keyState.right = true;
+});
+window.addEventListener('keyup', (e) => {
+	if (e.code === 'KeyZ') keyState.left = false;
+	if (e.code === 'KeyX') keyState.right = false;
+});
 
 function setupScene({ scene, camera }) {
 	// Crosshair at center of view
-	const crosshair = new THREE.Mesh(
+	crosshair = new THREE.Mesh(
 		new THREE.RingGeometry(0.02, 0.04, 32),
 		new THREE.MeshBasicMaterial({
 			color: 0xffffff,
@@ -33,6 +45,15 @@ function setupScene({ scene, camera }) {
 	);
 	crosshair.position.set(0, 0, -2);
 	camera.add(crosshair);
+	const cannonGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.4, 8);
+	cannonGeo.rotateX(Math.PI / 2);
+	const cannonMat = new THREE.MeshStandardMaterial({ color: 0x888888 });
+	leftCannon = new THREE.Mesh(cannonGeo, cannonMat);
+	rightCannon = new THREE.Mesh(cannonGeo, cannonMat);
+	leftCannon.position.set(-0.3, -0.15, -0.6);
+	rightCannon.position.set(0.3, -0.15, -0.6);
+	camera.add(leftCannon);
+	camera.add(rightCannon);
 
 	// World reference: origin axes + ground grid
 	const worldAxes = new THREE.AxesHelper(2);
@@ -152,8 +173,9 @@ const PLAYER_TURN_SPEED = Math.PI; // rad/s for right-stick yaw turn (180°/s)
 const BULLET_RADIUS = 0.05; // meters
 const BULLET_SPEED = 10; // m/s
 const BULLET_TTL = 2.0; // seconds
-const FIRE_RATE = 3; // per second when both triggers held
-let fireTimer = 0;
+const FIRE_RATE = 3; // bullets per second per cannon
+let leftFireTimer = 0;
+let rightFireTimer = 0;
 // Enemies
 const ENEMY_RADIUS = 0.3; // meters
 const ENEMY_SPEED = 2.5; // m/s toward player
@@ -315,7 +337,14 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 		}
 	}
 
-	// Firing: both triggers held => shoot balls forward from camera
+	const aimTarget = new THREE.Vector3();
+	if (crosshair) {
+		crosshair.getWorldPosition(aimTarget);
+		leftCannon?.lookAt(aimTarget);
+		rightCannon?.lookAt(aimTarget);
+	}
+
+	// Firing: triggers or Z/X keys fire respective cannons
 	const leftTriggerDown = !!(
 		controllers.left &&
 		controllers.left.gamepad &&
@@ -338,22 +367,19 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 				controllers.right.gamepad.gamepad.buttons &&
 				controllers.right.gamepad.gamepad.buttons[0]?.pressed))
 	);
-	const bothTriggers = leftTriggerDown && rightTriggerDown;
+	const leftFiring = leftTriggerDown || keyState.left;
+	const rightFiring = rightTriggerDown || keyState.right;
+	const interval = 1 / FIRE_RATE;
 
-	if (bothTriggers && bulletGeo && bulletMat && bulletGroup) {
-		fireTimer += delta;
-		const interval = 1 / FIRE_RATE;
-		while (fireTimer >= interval) {
-			fireTimer -= interval;
-			const q = new THREE.Quaternion();
-			camera.getWorldQuaternion(q);
-			const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(q).normalize();
+	if (leftFiring && bulletGeo && bulletMat && bulletGroup && leftCannon) {
+		leftFireTimer += delta;
+		while (leftFireTimer >= interval) {
+			leftFireTimer -= interval;
 			const start = new THREE.Vector3();
-			camera.getWorldPosition(start);
-			start.addScaledVector(dir, 0.5);
+			leftCannon.getWorldPosition(start);
+			const dir = aimTarget.clone().sub(start).normalize();
 			const mesh = new THREE.Mesh(bulletGeo, bulletMat);
 			mesh.position.copy(start);
-			mesh.quaternion.copy(q);
 			mesh.userData = {
 				vel: dir.clone().multiplyScalar(BULLET_SPEED),
 				ttl: BULLET_TTL,
@@ -370,7 +396,35 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 			bullets.push(mesh);
 		}
 	} else {
-		fireTimer = 0;
+		leftFireTimer = 0;
+	}
+
+	if (rightFiring && bulletGeo && bulletMat && bulletGroup && rightCannon) {
+		rightFireTimer += delta;
+		while (rightFireTimer >= interval) {
+			rightFireTimer -= interval;
+			const start = new THREE.Vector3();
+			rightCannon.getWorldPosition(start);
+			const dir = aimTarget.clone().sub(start).normalize();
+			const mesh = new THREE.Mesh(bulletGeo, bulletMat);
+			mesh.position.copy(start);
+			mesh.userData = {
+				vel: dir.clone().multiplyScalar(BULLET_SPEED),
+				ttl: BULLET_TTL,
+			};
+			if (shotBuffer && audioListener) {
+				const shot = new THREE.PositionalAudio(audioListener);
+				shot.setBuffer(shotBuffer);
+				shot.setRefDistance(2);
+				shot.setVolume(0.6);
+				mesh.add(shot);
+				shot.play();
+			}
+			bulletGroup.add(mesh);
+			bullets.push(mesh);
+		}
+	} else {
+		rightFireTimer = 0;
 	}
 
 	for (let i = bullets.length - 1; i >= 0; i--) {
