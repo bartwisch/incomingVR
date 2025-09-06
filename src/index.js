@@ -24,6 +24,10 @@ let bulletGeo = null;
 let bulletMat = null;
 let laserMat = null;
 const bullets = [];
+let explosionGroup = null;
+let explosionGeo = null;
+let explosionMat = null;
+const explosions = [];
 let audioListener = null;
 let cannonBuffer = null;
 let laserBuffer = null;
@@ -153,7 +157,6 @@ scoreText.renderOrder = 1000;
 scoreText.material.depthTest = false;
 scoreText.material.depthWrite = false;
 camera.add(scoreText);
- 
 
 	// Bullet prototype/shared
 	bulletGeo = new THREE.SphereGeometry(BULLET_RADIUS, 16, 12);
@@ -165,54 +168,40 @@ camera.add(scoreText);
 	bulletGroup = new THREE.Group();
 	scene.add(bulletGroup);
 
-	// Enemy factories: planes and helicopters
-	const planeMat = new THREE.MeshStandardMaterial({
-		color: 0x3333ff,
-		metalness: 0.1,
-		roughness: 0.8,
-	});
-	const heliMat = new THREE.MeshStandardMaterial({
-		color: 0x33ff33,
-		metalness: 0.1,
-		roughness: 0.8,
-	});
-	const planeFactory = () => {
-		const g = new THREE.Group();
-		const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.2), planeMat);
-		g.add(body);
-		const wing = new THREE.Mesh(
-			new THREE.BoxGeometry(0.2, 0.02, 0.8),
-			planeMat,
-		);
-		wing.position.y = 0.1;
-		g.add(wing);
-		g.userData.radius = 0.6;
-		return g;
-	};
-	const heliFactory = () => {
-		const g = new THREE.Group();
-		const body = new THREE.Mesh(
-			new THREE.CylinderGeometry(0.2, 0.2, 0.6, 8),
-			heliMat,
-		);
-		body.rotation.z = Math.PI / 2;
-		g.add(body);
-		const rotor = new THREE.Mesh(
-			new THREE.BoxGeometry(0.8, 0.02, 0.02),
-			heliMat,
-		);
-		rotor.position.y = 0.3;
-		g.add(rotor);
-		g.userData.radius = 0.6;
-		return g;
-	};
-	const enemyFactories = [planeFactory, heliFactory];
-	const enemyGroup = new THREE.Group();
-	enemyGroup.name = 'enemies';
-	scene.add(enemyGroup);
-	// Stash factories and group for use in onFrame
-	bulletGroup.userData.enemyFactories = enemyFactories;
-	bulletGroup.userData.enemyGroup = enemyGroup;
+// Enemy placeholders: shared geometry/materials and group
+const enemyGeo = new THREE.IcosahedronGeometry(ENEMY_RADIUS, 0);
+const enemyMats = [
+    new THREE.MeshStandardMaterial({
+        color: 0xff3333,
+        metalness: 0.1,
+        roughness: 0.8,
+    }),
+    new THREE.MeshStandardMaterial({
+        color: 0x3333ff,
+        metalness: 0.1,
+        roughness: 0.8,
+    }),
+];
+const enemyGroup = new THREE.Group();
+enemyGroup.name = 'enemies';
+scene.add(enemyGroup);
+
+// Stash geometry, materials and group for use in onFrame
+bulletGroup.userData.enemyGeo = enemyGeo;
+bulletGroup.userData.enemyMats = enemyMats;
+bulletGroup.userData.enemyGroup = enemyGroup;
+
+// Explosion placeholders
+explosionGeo = new THREE.SphereGeometry(1, 16, 12);
+explosionMat = new THREE.MeshBasicMaterial({
+    color: 0xff8800,
+    transparent: true,
+    opacity: 0.7,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+});
+explosionGroup = new THREE.Group();
+scene.add(explosionGroup);
 
 	// Audio: listener + load shot buffer (prefer shot1.mp3 with fallbacks)
 	audioListener = new THREE.AudioListener();
@@ -258,6 +247,8 @@ const ENEMY_Y_OFFSET = 6.0; // spawn height above player
 const ENEMY_AHEAD_MIN = 6.0; // min distance ahead of player
 const ENEMY_AHEAD_MAX = 12.0; // max distance ahead of player
 let enemySpawnTimer = 0;
+const EXPLOSION_TTL = 0.6; // seconds
+const EXPLOSION_GROWTH = 4; // scale units per second
 
 function onFrame(delta, _time, { controllers, camera, player }) {
 	if (scoreText) {
@@ -353,11 +344,12 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 const enemyGroup = bulletGroup?.userData?.enemyGroup;
 const enemyGeo = bulletGroup?.userData?.enemyGeo;
 const enemyMats = bulletGroup?.userData?.enemyMats;
+
 if (enemyGroup && enemyGeo && enemyMats) {
     enemySpawnTimer += delta;
     while (enemySpawnTimer >= ENEMY_SPAWN_INTERVAL) {
         enemySpawnTimer -= ENEMY_SPAWN_INTERVAL;
-        
+
         const ppos = new THREE.Vector3();
         player.getWorldPosition(ppos);
         const yaw = player.rotation.y;
@@ -373,7 +365,7 @@ if (enemyGroup && enemyGeo && enemyMats) {
             .addScaledVector(fwd, ahead)
             .addScaledVector(right, lateral);
         start.y = ppos.y + ENEMY_Y_OFFSET;
-        
+
         const dir = ppos.clone().sub(start).normalize();
         const mat = enemyMats[Math.floor(Math.random() * enemyMats.length)];
         const enemy = new THREE.Mesh(enemyGeo, mat);
@@ -385,7 +377,7 @@ if (enemyGroup && enemyGeo && enemyMats) {
         };
         enemyGroup.add(enemy);
     }
-    
+
     // Move enemies and remove out-of-bounds ones
     for (let i = enemyGroup.children.length - 1; i >= 0; i--) {
         const e = enemyGroup.children[i];
@@ -394,19 +386,7 @@ if (enemyGroup && enemyGeo && enemyMats) {
             enemyGroup.remove(e);
         }
     }
-}
-		}
-	}
 
-// Move enemies and remove out-of-bounds ones
-    for (let i = enemyGroup.children.length - 1; i >= 0; i--) {
-        const e = enemyGroup.children[i];
-        e.position.addScaledVector(e.userData.vel, delta);
-        if (e.position.y < -2 || e.position.distanceTo(player.position) > 60) {
-            enemyGroup.remove(e);
-        }
-    }
-    
     // Check bullet-enemy collisions
     for (let bi = bullets.length - 1; bi >= 0; bi--) {
         const b = bullets[bi];
@@ -430,7 +410,39 @@ if (enemyGroup && enemyGeo && enemyMats) {
             }
         }
     }
+}
 
+	for (let bi = bullets.length - 1; bi >= 0; bi--) {
+		const b = bullets[bi];
+		const bp = b.position;
+		let hit = null;
+		for (let ei = enemyGroup.children.length - 1; ei >= 0; ei--) {
+			const e = enemyGroup.children[ei];
+			const sumR = BULLET_RADIUS + (e.userData.radius ?? ENEMY_RADIUS);
+			if (bp.distanceTo(e.position) <= sumR) {
+				hit = e;
+				e.userData.hp -= 1;
+				break;
+			}
+		}
+		if (hit) {
+			bulletGroup.remove(b);
+			bullets.splice(bi, 1);
+			if (hit.userData.hp <= 0) {
+				const ex = new THREE.Mesh(explosionGeo, explosionMat.clone());
+				ex.position.copy(hit.position);
+				ex.scale.setScalar(0.1);
+				ex.userData = {
+					ttl: EXPLOSION_TTL,
+					growth: EXPLOSION_GROWTH,
+				};
+				explosionGroup.add(ex);
+				explosions.push(ex);
+				enemyGroup.remove(hit);
+				score += 100;
+			}
+		}
+	}
 	const aimTarget = new THREE.Vector3();
 	if (crosshair) {
 		crosshair.getWorldPosition(aimTarget);
@@ -579,6 +591,17 @@ prevRightFiring = rightFiring;
 	}
 		const deltaMove = b.userData.vel.clone().multiplyScalar(delta);
 		b.position.add(deltaMove);
+	}
+	for (let i = explosions.length - 1; i >= 0; i--) {
+		const ex = explosions[i];
+		ex.userData.ttl -= delta;
+		const s = ex.scale.x + ex.userData.growth * delta;
+		ex.scale.setScalar(s);
+		ex.material.opacity = (ex.userData.ttl / EXPLOSION_TTL) * 0.7;
+		if (ex.userData.ttl <= 0) {
+			explosionGroup.remove(ex);
+			explosions.splice(i, 1);
+		}
 	}
 }
 
