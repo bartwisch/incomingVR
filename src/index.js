@@ -38,7 +38,7 @@ let rightCannon = null;
 const weaponType = { left: 'cannon', right: 'cannon' };
 const WEAPON_TYPES = ['cannon', 'laser', 'machinegun'];
 const nextWeapon = (current) =>
-        WEAPON_TYPES[(WEAPON_TYPES.indexOf(current) + 1) % WEAPON_TYPES.length];
+	WEAPON_TYPES[(WEAPON_TYPES.indexOf(current) + 1) % WEAPON_TYPES.length];
 let prevLeftSwitch = false;
 let prevRightSwitch = false;
 const keyState = { left: false, right: false };
@@ -64,9 +64,9 @@ function setupScene({ scene, camera }) {
 			transparent: true,
 		}),
 	);
-       crosshair.position.set(0, 0, -5);
-       crosshair.scale.set(2.5, 2.5, 2.5);
-       camera.add(crosshair);
+	crosshair.position.set(0, 0, -5);
+	crosshair.scale.set(2.5, 2.5, 2.5);
+	camera.add(crosshair);
 	const cannonGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.4, 8);
 	cannonGeo.rotateX(Math.PI / 2);
 	const cannonMat = new THREE.MeshStandardMaterial({ color: 0x888888 });
@@ -232,7 +232,6 @@ function setupScene({ scene, camera }) {
 
 const DEADZONE = 0.15;
 const PLAYER_MOVE_SPEED = 2.0; // m/s for left-stick locomotion
-const PLAYER_ELEVATE_SPEED = 1.5; // m/s for right-stick vertical movement
 const PLAYER_TURN_SPEED = Math.PI; // rad/s for right-stick yaw turn (180°/s)
 const BULLET_RADIUS = 0.05; // meters
 const BULLET_SPEED = 10; // m/s
@@ -317,31 +316,21 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 		}
 	}
 
-	// Right thumbstick: rotate player yaw and change height
+	// Right thumbstick: rotate player yaw
 	if (controllers.right && player) {
 		const gp = controllers.right.gamepad;
 		let rx = 0;
-		let ry = 0;
 		if (gp && typeof gp.getAxis === 'function') {
 			try {
 				rx = gp.getAxis(XR_AXES.THUMBSTICK_X) ?? 0;
 			} catch {
 				rx = 0;
 			}
-			try {
-				ry = gp.getAxis(XR_AXES.THUMBSTICK_Y) ?? 0;
-			} catch {
-				ry = 0;
-			}
 		} else if (gp && gp.gamepad && Array.isArray(gp.gamepad.axes)) {
 			rx = gp.gamepad.axes[2] ?? 0;
-			ry = gp.gamepad.axes[3] ?? 0;
 		}
 		if (Math.abs(rx) > DEADZONE) {
 			player.rotation.y += rx * PLAYER_TURN_SPEED * delta;
-		}
-		if (Math.abs(ry) > DEADZONE) {
-			player.position.y += -ry * PLAYER_ELEVATE_SPEED * delta;
 		}
 	}
 
@@ -440,9 +429,7 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 		((typeof controllers.left.gamepad.getButton === 'function' &&
 			controllers.left.gamepad.getButton(XR_BUTTONS.BUTTON_1)) ||
 			(typeof controllers.left.gamepad.getButtonPressed === 'function' &&
-				controllers.left.gamepad.getButtonPressed(
-					XR_BUTTONS.BUTTON_1,
-				)) ||
+				controllers.left.gamepad.getButtonPressed(XR_BUTTONS.BUTTON_1)) ||
 			(controllers.left.gamepad.gamepad &&
 				controllers.left.gamepad.gamepad.buttons &&
 				controllers.left.gamepad.gamepad.buttons[4]?.pressed))
@@ -453,9 +440,7 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 		((typeof controllers.right.gamepad.getButton === 'function' &&
 			controllers.right.gamepad.getButton(XR_BUTTONS.BUTTON_1)) ||
 			(typeof controllers.right.gamepad.getButtonPressed === 'function' &&
-				controllers.right.gamepad.getButtonPressed(
-					XR_BUTTONS.BUTTON_1,
-				)) ||
+				controllers.right.gamepad.getButtonPressed(XR_BUTTONS.BUTTON_1)) ||
 			(controllers.right.gamepad.gamepad &&
 				controllers.right.gamepad.gamepad.buttons &&
 				controllers.right.gamepad.gamepad.buttons[4]?.pressed))
@@ -496,15 +481,9 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 	const leftFiring = leftTriggerDown || keyState.left;
 	const rightFiring = rightTriggerDown || keyState.right;
 	const leftInterval =
-		1 /
-		(weaponType.left === 'machinegun'
-			? MACHINE_GUN_RATE
-			: FIRE_RATE);
+		1 / (weaponType.left === 'machinegun' ? MACHINE_GUN_RATE : FIRE_RATE);
 	const rightInterval =
-		1 /
-		(weaponType.right === 'machinegun'
-			? MACHINE_GUN_RATE
-			: FIRE_RATE);
+		1 / (weaponType.right === 'machinegun' ? MACHINE_GUN_RATE : FIRE_RATE);
 
 	if (leftFiring && !prevLeftFiring) {
 		leftFireTimer = leftInterval;
