@@ -143,20 +143,27 @@ function setupScene({ scene, camera }) {
 	bulletGroup = new THREE.Group();
 	scene.add(bulletGroup);
 
-	// Enemy placeholders: shared geometry/material and group
-	const enemyGeo = new THREE.IcosahedronGeometry(ENEMY_RADIUS, 0);
-	const enemyMat = new THREE.MeshStandardMaterial({
-		color: 0xff3333,
-		metalness: 0.1,
-		roughness: 0.8,
-	});
-	const enemyGroup = new THREE.Group();
-	enemyGroup.name = 'enemies';
-	scene.add(enemyGroup);
-	// Stash factory and group for use in onFrame
-	bulletGroup.userData.enemyGeo = enemyGeo;
-	bulletGroup.userData.enemyMat = enemyMat;
-	bulletGroup.userData.enemyGroup = enemyGroup;
+// Enemy placeholders: shared geometry/materials and group
+const enemyGeo = new THREE.IcosahedronGeometry(ENEMY_RADIUS, 0);
+const enemyMats = [
+new THREE.MeshStandardMaterial({
+color: 0xff3333,
+metalness: 0.1,
+roughness: 0.8,
+}),
+new THREE.MeshStandardMaterial({
+color: 0x3333ff,
+metalness: 0.1,
+roughness: 0.8,
+}),
+];
+const enemyGroup = new THREE.Group();
+enemyGroup.name = 'enemies';
+scene.add(enemyGroup);
+// Stash factory and group for use in onFrame
+bulletGroup.userData.enemyGeo = enemyGeo;
+bulletGroup.userData.enemyMats = enemyMats;
+bulletGroup.userData.enemyGroup = enemyGroup;
 
 	// Audio: listener + load shot buffer (prefer shot1.mp3 with fallbacks)
 	audioListener = new THREE.AudioListener();
@@ -293,33 +300,42 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 	}
 
 	// Enemies: spawn, move, and handle bullet collisions
-	const enemyGroup = bulletGroup?.userData?.enemyGroup;
-	const enemyGeo = bulletGroup?.userData?.enemyGeo;
-	const enemyMat = bulletGroup?.userData?.enemyMat;
-	if (enemyGroup && enemyGeo && enemyMat) {
-		enemySpawnTimer += delta;
-		while (enemySpawnTimer >= ENEMY_SPAWN_INTERVAL) {
-			enemySpawnTimer -= ENEMY_SPAWN_INTERVAL;
-                        const ppos = new THREE.Vector3();
-                        player.getWorldPosition(ppos);
-                        const fwd = new THREE.Vector3();
-                        camera.getWorldDirection(fwd);
-                        fwd.y = 0;
-                        fwd.normalize();
-                        const ahead =
-                                ENEMY_AHEAD_MIN + Math.random() * (ENEMY_AHEAD_MAX - ENEMY_AHEAD_MIN);
-                        const start = ppos.clone().addScaledVector(fwd, ahead);
-                        start.y = ppos.y + ENEMY_Y_OFFSET;
-                        const dir = ppos.clone().sub(start).normalize();
-                        const enemy = new THREE.Mesh(enemyGeo, enemyMat);
-                        enemy.position.copy(start);
-                        enemy.userData = {
-                                vel: dir.multiplyScalar(ENEMY_SPEED),
-                                hp: 1,
-                                radius: ENEMY_RADIUS,
-                        };
-                        enemyGroup.add(enemy);
-                }
+const enemyGroup = bulletGroup?.userData?.enemyGroup;
+const enemyGeo = bulletGroup?.userData?.enemyGeo;
+const enemyMats = bulletGroup?.userData?.enemyMats;
+if (enemyGroup && enemyGeo && enemyMats) {
+    enemySpawnTimer += delta;
+    while (enemySpawnTimer >= ENEMY_SPAWN_INTERVAL) {
+        enemySpawnTimer -= ENEMY_SPAWN_INTERVAL;
+        
+        const ppos = new THREE.Vector3();
+        player.getWorldPosition(ppos);
+        const yaw = player.rotation.y;
+        const fwd = new THREE.Vector3(Math.sin(yaw), 0, -Math.cos(yaw));
+        const right = new THREE.Vector3(fwd.z, 0, -fwd.x).normalize();
+        const ahead =
+            ENEMY_AHEAD_MIN + Math.random() * (ENEMY_AHEAD_MAX - ENEMY_AHEAD_MIN);
+        const spreadRad = THREE.MathUtils.degToRad(ENEMY_SPREAD_DEG);
+        const ang = (Math.random() * 2 - 1) * spreadRad;
+        const lateral = Math.tan(ang) * ahead;
+        const start = ppos
+            .clone()
+            .addScaledVector(fwd, ahead)
+            .addScaledVector(right, lateral);
+        start.y = ppos.y + ENEMY_Y_OFFSET;
+        
+        const dir = ppos.clone().sub(start).normalize();
+        const mat = enemyMats[Math.floor(Math.random() * enemyMats.length)];
+        const enemy = new THREE.Mesh(enemyGeo, mat);
+        enemy.position.copy(start);
+        enemy.userData = {
+            vel: dir.multiplyScalar(ENEMY_SPEED),
+            hp: 1,
+            radius: ENEMY_RADIUS,
+        };
+        enemyGroup.add(enemy);
+    }
+}
 
 		for (let i = enemyGroup.children.length - 1; i >= 0; i--) {
 			const e = enemyGroup.children[i];
