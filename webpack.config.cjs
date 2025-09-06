@@ -28,6 +28,7 @@ module.exports = {
 
 			// Create a WS server bound to the existing HTTPS server
 			const wss = new WebSocket.Server({ server: devServer.server, path: '/players' });
+			console.log('[dev] Multiplayer WS ready at wss://<host>:8081/players');
 
 			// id -> { id, name, color, state: { p:[x,y,z], r:[x,y,z] }, ws }
 			const players = new Map();
@@ -49,6 +50,7 @@ module.exports = {
 			};
 
 			wss.on('connection', (ws) => {
+				console.log('[dev] Multiplayer client connecting...');
 				const id = String(nextId++);
 				const { name, color } = assignNameColor();
 				players.set(id, {
@@ -91,6 +93,10 @@ module.exports = {
 				ws.on('close', () => {
 					players.delete(id);
 					broadcast({ type: 'leave', id });
+				});
+
+				ws.on('error', (err) => {
+					console.error('[dev] Multiplayer client error:', err?.message || err);
 				});
 			});
 

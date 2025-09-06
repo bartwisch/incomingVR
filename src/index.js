@@ -54,7 +54,7 @@ window.addEventListener('keyup', (e) => {
 	if (e.code === 'KeyX') keyState.right = false;
 });
 
-function setupScene({ scene, camera }) {
+function setupScene({ scene, camera, player }) {
 	// Blue sky background
 	scene.background = new THREE.Color(0x87ceeb);
 

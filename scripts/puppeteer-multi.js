@@ -58,18 +58,42 @@ async function run() {
   });
   try {
     const [p1, p2] = await Promise.all([browser.newPage(), browser.newPage()]);
+    // Mirror page console to help debugging in CI/headless
+    for (const [idx, page] of [p1, p2].entries()) {
+      page.on('console', (msg) => console.log(`[p${idx + 1} console]`, msg.text()));
+      page.on('pageerror', (err) => console.error(`[p${idx + 1} pageerror]`, err));
+    }
     await Promise.all([
       p1.goto('https://localhost:8081', { waitUntil: 'load', timeout: 120000 }),
       p2.goto('https://localhost:8081', { waitUntil: 'load', timeout: 120000 }),
     ]);
-    // Give the WS handshake a moment
-    await new Promise((r) => setTimeout(r, 1500));
+
+    // Wait until both tabs report Players: 2 (join/welcome can be async)
+    const waitForPlayers2 = (page) =>
+      page.waitForFunction(
+        () => {
+          const app = window.__app;
+          if (!app?.camera) return false;
+          const find = (obj) => {
+            if (obj && typeof obj.text === 'string' && obj.text.startsWith('Players:')) {
+              return obj.text.trim() === 'Players: 2';
+            }
+            if (!obj?.children) return false;
+            for (const c of obj.children) {
+              if (find(c)) return true;
+            }
+            return false;
+          };
+          return find(app.camera);
+        },
+        { timeout: 15000 },
+      );
+
+    await Promise.all([waitForPlayers2(p1), waitForPlayers2(p2)]);
+
     const [t1, t2] = await Promise.all([playersText(p1), playersText(p2)]);
     console.log('[p1]', t1);
     console.log('[p2]', t2);
-    if (t1 !== 'Players: 2' || t2 !== 'Players: 2') {
-      throw new Error(`Expected both tabs to show Players: 2 (got '${t1}' / '${t2}')`);
-    }
     console.log('Two-tab multiplayer smoke passed.');
   } finally {
     await browser.close();
@@ -78,4 +102,3 @@ async function run() {
 }
 
 run().catch((e) => { console.error(e); process.exit(1); });
-
