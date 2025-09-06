@@ -15,6 +15,9 @@ let playerRotText = null;
 let scoreText = null;
 let score = 0;
 
+const HUD_COLOR = 0x00ff00;
+const HUD_FONT = '/assets/SpaceMono-Bold.ttf';
+
 // Shooting state
 let bulletGroup = null;
 let bulletGeo = null;
@@ -45,6 +48,9 @@ window.addEventListener('keyup', (e) => {
 });
 
 function setupScene({ scene, camera }) {
+	// Blue sky background
+	scene.background = new THREE.Color(0x87ceeb);
+
 	// Crosshair at center of view
 	crosshair = new THREE.Mesh(
 		new THREE.RingGeometry(0.02, 0.04, 32),
@@ -54,8 +60,9 @@ function setupScene({ scene, camera }) {
 			transparent: true,
 		}),
 	);
-	crosshair.position.set(0, 0, -2);
-	camera.add(crosshair);
+       crosshair.position.set(0, 0, -5);
+       crosshair.scale.set(2.5, 2.5, 2.5);
+       camera.add(crosshair);
 	const cannonGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.4, 8);
 	cannonGeo.rotateX(Math.PI / 2);
 	const cannonMat = new THREE.MeshStandardMaterial({ color: 0x888888 });
@@ -109,42 +116,47 @@ function setupScene({ scene, camera }) {
 
 	// HUD: display player world position
 	playerPosText = new Text();
-	playerPosText.text = 'Player: x=0.00 y=0.00 z=0.00';
-	playerPosText.fontSize = 0.06;
-	playerPosText.color = 0xffffff;
-	playerPosText.anchorX = 'left';
-	playerPosText.anchorY = 'top';
-	playerPosText.position.set(-0.6, 0.43, -1.2);
-	playerPosText.renderOrder = 1000;
-	playerPosText.material.depthTest = false;
-	playerPosText.material.depthWrite = false;
-	camera.add(playerPosText);
+playerPosText.text = 'Player: x=0.00 y=0.00 z=0.00';
+playerPosText.fontSize = 0.06;
+playerPosText.color = HUD_COLOR;
+playerPosText.font = HUD_FONT;
+playerPosText.anchorX = 'left';
+playerPosText.anchorY = 'top';
+playerPosText.position.set(-0.6, 0.43, -1.2);
+playerPosText.renderOrder = 1000;
+playerPosText.material.depthTest = false;
+playerPosText.material.depthWrite = false;
+camera.add(playerPosText);
 
 	// HUD: display player rotation (yaw/pitch/roll in degrees)
 	playerRotText = new Text();
-	playerRotText.text = 'Player Rot: yaw=0 pitch=0 roll=0';
-	playerRotText.fontSize = 0.06;
-	playerRotText.color = 0xffffff;
-	playerRotText.anchorX = 'left';
-	playerRotText.anchorY = 'top';
-	playerRotText.position.set(-0.6, 0.37, -1.2);
-	playerRotText.renderOrder = 1000;
-	playerRotText.material.depthTest = false;
-	playerRotText.material.depthWrite = false;
-	camera.add(playerRotText);
+// HUD: display player rotation (yaw/pitch/roll in degrees)
+playerRotText = new Text();
+playerRotText.text = 'Player Rot: yaw=0 pitch=0 roll=0';
+playerRotText.fontSize = 0.06;
+playerRotText.color = HUD_COLOR;
+playerRotText.font = HUD_FONT;
+playerRotText.anchorX = 'left';
+playerRotText.anchorY = 'top';
+playerRotText.position.set(-0.6, 0.37, -1.2);
+playerRotText.renderOrder = 1000;
+playerRotText.material.depthTest = false;
+playerRotText.material.depthWrite = false;
+camera.add(playerRotText);
 
-	// HUD: score display
-	scoreText = new Text();
-	scoreText.text = 'Score: 0';
-	scoreText.fontSize = 0.06;
-	scoreText.color = 0x00ff00;
-	scoreText.anchorX = 'right';
-	scoreText.anchorY = 'top';
-	scoreText.position.set(0.6, 0.43, -1.2);
-	scoreText.renderOrder = 1000;
-	scoreText.material.depthTest = false;
-	scoreText.material.depthWrite = false;
-	camera.add(scoreText);
+// HUD: score display
+scoreText = new Text();
+scoreText.text = 'Score: 0';
+scoreText.fontSize = 0.06;
+scoreText.color = HUD_COLOR;
+scoreText.font = HUD_FONT;
+scoreText.anchorX = 'right';
+scoreText.anchorY = 'top';
+scoreText.position.set(0.6, 0.43, -1.2);
+scoreText.renderOrder = 1000;
+scoreText.material.depthTest = false;
+scoreText.material.depthWrite = false;
+camera.add(scoreText);
 
 	// Bullet prototype/shared
 	bulletGeo = new THREE.SphereGeometry(BULLET_RADIUS, 16, 12);
@@ -156,39 +168,40 @@ function setupScene({ scene, camera }) {
 	bulletGroup = new THREE.Group();
 	scene.add(bulletGroup);
 
-	// Enemy placeholders: shared geometry/materials and group
-	const enemyGeo = new THREE.IcosahedronGeometry(ENEMY_RADIUS, 0);
-	const enemyMats = [
-		new THREE.MeshStandardMaterial({
-			color: 0xff3333,
-			metalness: 0.1,
-			roughness: 0.8,
-		}),
-		new THREE.MeshStandardMaterial({
-			color: 0x3333ff,
-			metalness: 0.1,
-			roughness: 0.8,
-		}),
-	];
-	const enemyGroup = new THREE.Group();
-	enemyGroup.name = 'enemies';
-	scene.add(enemyGroup);
-	// Stash factory and group for use in onFrame
-	bulletGroup.userData.enemyGeo = enemyGeo;
-	bulletGroup.userData.enemyMats = enemyMats;
-	bulletGroup.userData.enemyGroup = enemyGroup;
+// Enemy placeholders: shared geometry/materials and group
+const enemyGeo = new THREE.IcosahedronGeometry(ENEMY_RADIUS, 0);
+const enemyMats = [
+    new THREE.MeshStandardMaterial({
+        color: 0xff3333,
+        metalness: 0.1,
+        roughness: 0.8,
+    }),
+    new THREE.MeshStandardMaterial({
+        color: 0x3333ff,
+        metalness: 0.1,
+        roughness: 0.8,
+    }),
+];
+const enemyGroup = new THREE.Group();
+enemyGroup.name = 'enemies';
+scene.add(enemyGroup);
 
-	// Explosion placeholders
-	explosionGeo = new THREE.SphereGeometry(1, 16, 12);
-	explosionMat = new THREE.MeshBasicMaterial({
-		color: 0xff8800,
-		transparent: true,
-		opacity: 0.7,
-		blending: THREE.AdditiveBlending,
-		depthWrite: false,
-	});
-	explosionGroup = new THREE.Group();
-	scene.add(explosionGroup);
+// Stash geometry, materials and group for use in onFrame
+bulletGroup.userData.enemyGeo = enemyGeo;
+bulletGroup.userData.enemyMats = enemyMats;
+bulletGroup.userData.enemyGroup = enemyGroup;
+
+// Explosion placeholders
+explosionGeo = new THREE.SphereGeometry(1, 16, 12);
+explosionMat = new THREE.MeshBasicMaterial({
+    color: 0xff8800,
+    transparent: true,
+    opacity: 0.7,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+});
+explosionGroup = new THREE.Group();
+scene.add(explosionGroup);
 
 	// Audio: listener + load shot buffer (prefer shot1.mp3 with fallbacks)
 	audioListener = new THREE.AudioListener();
@@ -328,50 +341,76 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 	}
 
 	// Enemies: spawn, move, and handle bullet collisions
-	const enemyGroup = bulletGroup?.userData?.enemyGroup;
-	const enemyGeo = bulletGroup?.userData?.enemyGeo;
-	const enemyMats = bulletGroup?.userData?.enemyMats;
-	if (enemyGroup && enemyGeo && enemyMats) {
-		enemySpawnTimer += delta;
-		while (enemySpawnTimer >= ENEMY_SPAWN_INTERVAL) {
-			enemySpawnTimer -= ENEMY_SPAWN_INTERVAL;
+const enemyGroup = bulletGroup?.userData?.enemyGroup;
+const enemyGeo = bulletGroup?.userData?.enemyGeo;
+const enemyMats = bulletGroup?.userData?.enemyMats;
 
-			const ppos = new THREE.Vector3();
-			player.getWorldPosition(ppos);
-			const yaw = player.rotation.y;
-			const fwd = new THREE.Vector3(Math.sin(yaw), 0, -Math.cos(yaw));
-			const right = new THREE.Vector3(fwd.z, 0, -fwd.x).normalize();
-			const ahead =
-				ENEMY_AHEAD_MIN + Math.random() * (ENEMY_AHEAD_MAX - ENEMY_AHEAD_MIN);
-			const spreadRad = THREE.MathUtils.degToRad(ENEMY_SPREAD_DEG);
-			const ang = (Math.random() * 2 - 1) * spreadRad;
-			const lateral = Math.tan(ang) * ahead;
-			const start = ppos
-				.clone()
-				.addScaledVector(fwd, ahead)
-				.addScaledVector(right, lateral);
-			start.y = ppos.y + ENEMY_Y_OFFSET;
+if (enemyGroup && enemyGeo && enemyMats) {
+    enemySpawnTimer += delta;
+    while (enemySpawnTimer >= ENEMY_SPAWN_INTERVAL) {
+        enemySpawnTimer -= ENEMY_SPAWN_INTERVAL;
 
-			const dir = ppos.clone().sub(start).normalize();
-			const mat = enemyMats[Math.floor(Math.random() * enemyMats.length)];
-			const enemy = new THREE.Mesh(enemyGeo, mat);
-			enemy.position.copy(start);
-			enemy.userData = {
-				vel: dir.multiplyScalar(ENEMY_SPEED),
-				hp: 1,
-				radius: ENEMY_RADIUS,
-			};
-			enemyGroup.add(enemy);
-		}
-	}
+        const ppos = new THREE.Vector3();
+        player.getWorldPosition(ppos);
+        const yaw = player.rotation.y;
+        const fwd = new THREE.Vector3(Math.sin(yaw), 0, -Math.cos(yaw));
+        const right = new THREE.Vector3(fwd.z, 0, -fwd.x).normalize();
+        const ahead =
+            ENEMY_AHEAD_MIN + Math.random() * (ENEMY_AHEAD_MAX - ENEMY_AHEAD_MIN);
+        const spreadRad = THREE.MathUtils.degToRad(ENEMY_SPREAD_DEG);
+        const ang = (Math.random() * 2 - 1) * spreadRad;
+        const lateral = Math.tan(ang) * ahead;
+        const start = ppos
+            .clone()
+            .addScaledVector(fwd, ahead)
+            .addScaledVector(right, lateral);
+        start.y = ppos.y + ENEMY_Y_OFFSET;
 
-	for (let i = enemyGroup.children.length - 1; i >= 0; i--) {
-		const e = enemyGroup.children[i];
-		e.position.addScaledVector(e.userData.vel, delta);
-		if (e.position.y < -2 || e.position.distanceTo(player.position) > 60) {
-			enemyGroup.remove(e);
-		}
-	}
+        const dir = ppos.clone().sub(start).normalize();
+        const mat = enemyMats[Math.floor(Math.random() * enemyMats.length)];
+        const enemy = new THREE.Mesh(enemyGeo, mat);
+        enemy.position.copy(start);
+        enemy.userData = {
+            vel: dir.multiplyScalar(ENEMY_SPEED),
+            hp: 1,
+            radius: ENEMY_RADIUS,
+        };
+        enemyGroup.add(enemy);
+    }
+
+    // Move enemies and remove out-of-bounds ones
+    for (let i = enemyGroup.children.length - 1; i >= 0; i--) {
+        const e = enemyGroup.children[i];
+        e.position.addScaledVector(e.userData.vel, delta);
+        if (e.position.y < -2 || e.position.distanceTo(player.position) > 60) {
+            enemyGroup.remove(e);
+        }
+    }
+
+    // Check bullet-enemy collisions
+    for (let bi = bullets.length - 1; bi >= 0; bi--) {
+        const b = bullets[bi];
+        const bp = b.position;
+        let hit = null;
+        for (let ei = enemyGroup.children.length - 1; ei >= 0; ei--) {
+            const e = enemyGroup.children[ei];
+            const sumR = BULLET_RADIUS + (e.userData.radius ?? ENEMY_RADIUS);
+            if (bp.distanceTo(e.position) <= sumR) {
+                hit = e;
+                e.userData.hp -= 1;
+                break;
+            }
+        }
+        if (hit) {
+            bulletGroup.remove(b);
+            bullets.splice(bi, 1);
+            if (hit.userData.hp <= 0) {
+                enemyGroup.remove(hit);
+                score += 100;
+            }
+        }
+    }
+}
 
 	for (let bi = bullets.length - 1; bi >= 0; bi--) {
 		const b = bullets[bi];
@@ -466,81 +505,81 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 				controllers.right.gamepad.gamepad.buttons &&
 				controllers.right.gamepad.gamepad.buttons[0]?.pressed))
 	);
-	const leftFiring = leftTriggerDown || keyState.left;
-	const rightFiring = rightTriggerDown || keyState.right;
-	const interval = 1 / FIRE_RATE;
+const leftFiring = leftTriggerDown || keyState.left;
+const rightFiring = rightTriggerDown || keyState.right;
+const interval = 1 / FIRE_RATE;
 
-	if (leftFiring && !prevLeftFiring) {
-		leftFireTimer = interval;
-	}
-	if (rightFiring && !prevRightFiring) {
-		rightFireTimer = interval;
-	}
+if (leftFiring && !prevLeftFiring) {
+    leftFireTimer = interval;
+}
+if (rightFiring && !prevRightFiring) {
+    rightFireTimer = interval;
+}
 
-	if (leftFiring && bulletGeo && bulletGroup && leftCannon) {
-		const isLaser = weaponType.left === 'laser';
-		const mat = isLaser ? laserMat : bulletMat;
-		const buffer = isLaser ? laserBuffer : cannonBuffer;
-		leftFireTimer += delta;
-		while (leftFireTimer >= interval) {
-			leftFireTimer -= interval;
-			const start = new THREE.Vector3();
-			leftCannon.getWorldPosition(start);
-			const dir = aimTarget.clone().sub(start).normalize();
-			const mesh = new THREE.Mesh(bulletGeo, mat);
-			mesh.position.copy(start);
-			mesh.userData = {
-				vel: dir.clone().multiplyScalar(BULLET_SPEED),
-				ttl: BULLET_TTL,
-			};
-			if (buffer && audioListener) {
-				const shot = new THREE.PositionalAudio(audioListener);
-				shot.setBuffer(buffer);
-				shot.setRefDistance(2);
-				shot.setVolume(0.6);
-				mesh.add(shot);
-				shot.play();
-			}
-			bulletGroup.add(mesh);
-			bullets.push(mesh);
-		}
-	} else {
-		leftFireTimer = 0;
-	}
+if (leftFiring && bulletGeo && bulletGroup && leftCannon) {
+    const isLaser = weaponType.left === 'laser';
+    const mat = isLaser ? laserMat : bulletMat;
+    const buffer = isLaser ? laserBuffer : cannonBuffer;
+    leftFireTimer += delta;
+    while (leftFireTimer >= interval) {
+        leftFireTimer -= interval;
+        const start = new THREE.Vector3();
+        leftCannon.getWorldPosition(start);
+        const dir = aimTarget.clone().sub(start).normalize();
+        const mesh = new THREE.Mesh(bulletGeo, mat);
+        mesh.position.copy(start);
+        mesh.userData = {
+            vel: dir.clone().multiplyScalar(BULLET_SPEED),
+            ttl: BULLET_TTL,
+        };
+        if (buffer && audioListener) {
+            const shot = new THREE.PositionalAudio(audioListener);
+            shot.setBuffer(buffer);
+            shot.setRefDistance(2);
+            shot.setVolume(0.6);
+            mesh.add(shot);
+            shot.play();
+        }
+        bulletGroup.add(mesh);
+        bullets.push(mesh);
+    }
+} else {
+    leftFireTimer = 0;
+}
 
-	if (rightFiring && bulletGeo && bulletGroup && rightCannon) {
-		const isLaser = weaponType.right === 'laser';
-		const mat = isLaser ? laserMat : bulletMat;
-		const buffer = isLaser ? laserBuffer : cannonBuffer;
-		rightFireTimer += delta;
-		while (rightFireTimer >= interval) {
-			rightFireTimer -= interval;
-			const start = new THREE.Vector3();
-			rightCannon.getWorldPosition(start);
-			const dir = aimTarget.clone().sub(start).normalize();
-			const mesh = new THREE.Mesh(bulletGeo, mat);
-			mesh.position.copy(start);
-			mesh.userData = {
-				vel: dir.clone().multiplyScalar(BULLET_SPEED),
-				ttl: BULLET_TTL,
-			};
-			if (buffer && audioListener) {
-				const shot = new THREE.PositionalAudio(audioListener);
-				shot.setBuffer(buffer);
-				shot.setRefDistance(2);
-				shot.setVolume(0.6);
-				mesh.add(shot);
-				shot.play();
-			}
-			bulletGroup.add(mesh);
-			bullets.push(mesh);
-		}
-	} else {
-		rightFireTimer = 0;
-	}
+if (rightFiring && bulletGeo && bulletGroup && rightCannon) {
+    const isLaser = weaponType.right === 'laser';
+    const mat = isLaser ? laserMat : bulletMat;
+    const buffer = isLaser ? laserBuffer : cannonBuffer;
+    rightFireTimer += delta;
+    while (rightFireTimer >= interval) {
+        rightFireTimer -= interval;
+        const start = new THREE.Vector3();
+        rightCannon.getWorldPosition(start);
+        const dir = aimTarget.clone().sub(start).normalize();
+        const mesh = new THREE.Mesh(bulletGeo, mat);
+        mesh.position.copy(start);
+        mesh.userData = {
+            vel: dir.clone().multiplyScalar(BULLET_SPEED),
+            ttl: BULLET_TTL,
+        };
+        if (buffer && audioListener) {
+            const shot = new THREE.PositionalAudio(audioListener);
+            shot.setBuffer(buffer);
+            shot.setRefDistance(2);
+            shot.setVolume(0.6);
+            mesh.add(shot);
+            shot.play();
+        }
+        bulletGroup.add(mesh);
+        bullets.push(mesh);
+    }
+} else {
+    rightFireTimer = 0;
+}
 
-	prevLeftFiring = leftFiring;
-	prevRightFiring = rightFiring;
+prevLeftFiring = leftFiring;
+prevRightFiring = rightFiring;
 
 	for (let i = bullets.length - 1; i >= 0; i--) {
 		const b = bullets[i];
@@ -549,7 +588,7 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 			bulletGroup.remove(b);
 			bullets.splice(i, 1);
 			continue;
-		}
+	}
 		const deltaMove = b.userData.vel.clone().multiplyScalar(delta);
 		b.position.add(deltaMove);
 	}
