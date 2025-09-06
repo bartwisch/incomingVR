@@ -1,5 +1,5 @@
 {
-	"name": "webxr-first-steps",
+	"name": "incomingVR",
 	"private": true,
 	"devDependencies": {
 		"@types/three": "0.165.0",
