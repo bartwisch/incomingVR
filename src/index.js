@@ -19,12 +19,17 @@ let score = 0;
 let bulletGroup = null;
 let bulletGeo = null;
 let bulletMat = null;
+let laserMat = null;
 const bullets = [];
 let audioListener = null;
-let shotBuffer = null;
+let cannonBuffer = null;
+let laserBuffer = null;
 let crosshair = null;
 let leftCannon = null;
 let rightCannon = null;
+const weaponType = { left: 'cannon', right: 'cannon' };
+let prevLeftSwitch = false;
+let prevRightSwitch = false;
 const keyState = { left: false, right: false };
 window.addEventListener('keydown', (e) => {
 	if (e.code === 'KeyZ') keyState.left = true;
@@ -138,10 +143,14 @@ function setupScene({ scene, camera }) {
         camera.add(scoreText);
 
 	// Bullet prototype/shared
-	bulletGeo = new THREE.SphereGeometry(BULLET_RADIUS, 16, 12);
-	bulletMat = new THREE.MeshStandardMaterial({ color: 0xffaa00 });
-	bulletGroup = new THREE.Group();
-	scene.add(bulletGroup);
+        bulletGeo = new THREE.SphereGeometry(BULLET_RADIUS, 16, 12);
+        bulletMat = new THREE.MeshStandardMaterial({ color: 0xffaa00 });
+        laserMat = new THREE.MeshStandardMaterial({
+                color: 0x00ffff,
+                emissive: 0x00ffff,
+        });
+        bulletGroup = new THREE.Group();
+        scene.add(bulletGroup);
 
 	// Enemy placeholders: shared geometry/material and group
 	const enemyGeo = new THREE.IcosahedronGeometry(ENEMY_RADIUS, 0);
@@ -161,24 +170,25 @@ function setupScene({ scene, camera }) {
 	// Audio: listener + load shot buffer (prefer shot1.mp3 with fallbacks)
 	audioListener = new THREE.AudioListener();
 	camera.add(audioListener);
-	const audioLoader = new THREE.AudioLoader();
-	const tryLoad = (url, next) => {
-		audioLoader.load(
-			url,
-			(buffer) => {
-				shotBuffer = buffer;
-			},
-			undefined,
-			() => {
-				if (next) next();
-			},
-		);
-	};
-	tryLoad('assets/shot1.mp3', () =>
-		tryLoad('assets/big_caliber_gunshot-1757083126996.mp3', () =>
-			tryLoad('assets/laser.ogg'),
-		),
-	);
+        const audioLoader = new THREE.AudioLoader();
+        const tryLoad = (url, next) => {
+                audioLoader.load(
+                        url,
+                        (buffer) => {
+                                cannonBuffer = buffer;
+                        },
+                        undefined,
+                        () => {
+                                if (next) next();
+                        },
+                );
+        };
+        tryLoad('assets/shot1.mp3', () =>
+                tryLoad('assets/big_caliber_gunshot-1757083126996.mp3'),
+        );
+        audioLoader.load('assets/laser.ogg', (buffer) => {
+                laserBuffer = buffer;
+        });
 }
 
 const DEADZONE = 0.15;
@@ -360,17 +370,55 @@ function onFrame(delta, _time, { controllers, camera, player }) {
         }
 
 	const aimTarget = new THREE.Vector3();
-	if (crosshair) {
-		crosshair.getWorldPosition(aimTarget);
-		leftCannon?.lookAt(aimTarget);
-		rightCannon?.lookAt(aimTarget);
-	}
+        if (crosshair) {
+                crosshair.getWorldPosition(aimTarget);
+                leftCannon?.lookAt(aimTarget);
+                rightCannon?.lookAt(aimTarget);
+        }
 
-	// Firing: triggers or Z/X keys fire respective cannons
-	const leftTriggerDown = !!(
-		controllers.left &&
-		controllers.left.gamepad &&
-		((typeof controllers.left.gamepad.getButton === 'function' &&
+        // Weapon switching: BUTTON_1 (A/X) toggles per controller
+        const leftSwitchDown = !!(
+                controllers.left &&
+                controllers.left.gamepad &&
+                ((typeof controllers.left.gamepad.getButton === 'function' &&
+                        controllers.left.gamepad.getButton(XR_BUTTONS.BUTTON_1)) ||
+                        (typeof controllers.left.gamepad.getButtonPressed === 'function' &&
+                                controllers.left.gamepad.getButtonPressed(
+                                        XR_BUTTONS.BUTTON_1,
+                                )) ||
+                        (controllers.left.gamepad.gamepad &&
+                                controllers.left.gamepad.gamepad.buttons &&
+                                controllers.left.gamepad.gamepad.buttons[4]?.pressed))
+        );
+        const rightSwitchDown = !!(
+                controllers.right &&
+                controllers.right.gamepad &&
+                ((typeof controllers.right.gamepad.getButton === 'function' &&
+                        controllers.right.gamepad.getButton(XR_BUTTONS.BUTTON_1)) ||
+                        (typeof controllers.right.gamepad.getButtonPressed === 'function' &&
+                                controllers.right.gamepad.getButtonPressed(
+                                        XR_BUTTONS.BUTTON_1,
+                                )) ||
+                        (controllers.right.gamepad.gamepad &&
+                                controllers.right.gamepad.gamepad.buttons &&
+                                controllers.right.gamepad.gamepad.buttons[4]?.pressed))
+        );
+        if (leftSwitchDown && !prevLeftSwitch) {
+                weaponType.left =
+                        weaponType.left === 'cannon' ? 'laser' : 'cannon';
+        }
+        if (rightSwitchDown && !prevRightSwitch) {
+                weaponType.right =
+                        weaponType.right === 'cannon' ? 'laser' : 'cannon';
+        }
+        prevLeftSwitch = leftSwitchDown;
+        prevRightSwitch = rightSwitchDown;
+
+        // Firing: triggers or Z/X keys fire respective cannons
+        const leftTriggerDown = !!(
+                controllers.left &&
+                controllers.left.gamepad &&
+                ((typeof controllers.left.gamepad.getButton === 'function' &&
 			controllers.left.gamepad.getButton(XR_BUTTONS.TRIGGER)) ||
 			(typeof controllers.left.gamepad.getButtonPressed === 'function' &&
 				controllers.left.gamepad.getButtonPressed(XR_BUTTONS.TRIGGER)) ||
@@ -400,58 +448,64 @@ function onFrame(delta, _time, { controllers, camera, player }) {
                 rightFireTimer = interval;
         }
 
-        if (leftFiring && bulletGeo && bulletMat && bulletGroup && leftCannon) {
+        if (leftFiring && bulletGeo && bulletGroup && leftCannon) {
+                const isLaser = weaponType.left === 'laser';
+                const mat = isLaser ? laserMat : bulletMat;
+                const buffer = isLaser ? laserBuffer : cannonBuffer;
                 leftFireTimer += delta;
                 while (leftFireTimer >= interval) {
                         leftFireTimer -= interval;
-			const start = new THREE.Vector3();
-			leftCannon.getWorldPosition(start);
-			const dir = aimTarget.clone().sub(start).normalize();
-			const mesh = new THREE.Mesh(bulletGeo, bulletMat);
-			mesh.position.copy(start);
-			mesh.userData = {
-				vel: dir.clone().multiplyScalar(BULLET_SPEED),
-				ttl: BULLET_TTL,
-			};
-			if (shotBuffer && audioListener) {
-				const shot = new THREE.PositionalAudio(audioListener);
-				shot.setBuffer(shotBuffer);
-				shot.setRefDistance(2);
-				shot.setVolume(0.6);
-				mesh.add(shot);
-				shot.play();
-			}
-			bulletGroup.add(mesh);
-			bullets.push(mesh);
-		}
-	} else {
-		leftFireTimer = 0;
-	}
+                        const start = new THREE.Vector3();
+                        leftCannon.getWorldPosition(start);
+                        const dir = aimTarget.clone().sub(start).normalize();
+                        const mesh = new THREE.Mesh(bulletGeo, mat);
+                        mesh.position.copy(start);
+                        mesh.userData = {
+                                vel: dir.clone().multiplyScalar(BULLET_SPEED),
+                                ttl: BULLET_TTL,
+                        };
+                        if (buffer && audioListener) {
+                                const shot = new THREE.PositionalAudio(audioListener);
+                                shot.setBuffer(buffer);
+                                shot.setRefDistance(2);
+                                shot.setVolume(0.6);
+                                mesh.add(shot);
+                                shot.play();
+                        }
+                        bulletGroup.add(mesh);
+                        bullets.push(mesh);
+                }
+        } else {
+                leftFireTimer = 0;
+        }
 
-	if (rightFiring && bulletGeo && bulletMat && bulletGroup && rightCannon) {
-		rightFireTimer += delta;
-		while (rightFireTimer >= interval) {
-			rightFireTimer -= interval;
-			const start = new THREE.Vector3();
-			rightCannon.getWorldPosition(start);
-			const dir = aimTarget.clone().sub(start).normalize();
-			const mesh = new THREE.Mesh(bulletGeo, bulletMat);
-			mesh.position.copy(start);
-			mesh.userData = {
-				vel: dir.clone().multiplyScalar(BULLET_SPEED),
-				ttl: BULLET_TTL,
-			};
-			if (shotBuffer && audioListener) {
-				const shot = new THREE.PositionalAudio(audioListener);
-				shot.setBuffer(shotBuffer);
-				shot.setRefDistance(2);
-				shot.setVolume(0.6);
-				mesh.add(shot);
-				shot.play();
-			}
-			bulletGroup.add(mesh);
-			bullets.push(mesh);
-		}
+        if (rightFiring && bulletGeo && bulletGroup && rightCannon) {
+                const isLaser = weaponType.right === 'laser';
+                const mat = isLaser ? laserMat : bulletMat;
+                const buffer = isLaser ? laserBuffer : cannonBuffer;
+                rightFireTimer += delta;
+                while (rightFireTimer >= interval) {
+                        rightFireTimer -= interval;
+                        const start = new THREE.Vector3();
+                        rightCannon.getWorldPosition(start);
+                        const dir = aimTarget.clone().sub(start).normalize();
+                        const mesh = new THREE.Mesh(bulletGeo, mat);
+                        mesh.position.copy(start);
+                        mesh.userData = {
+                                vel: dir.clone().multiplyScalar(BULLET_SPEED),
+                                ttl: BULLET_TTL,
+                        };
+                        if (buffer && audioListener) {
+                                const shot = new THREE.PositionalAudio(audioListener);
+                                shot.setBuffer(buffer);
+                                shot.setRefDistance(2);
+                                shot.setVolume(0.6);
+                                mesh.add(shot);
+                                shot.play();
+                        }
+                        bulletGroup.add(mesh);
+                        bullets.push(mesh);
+                }
         } else {
                 rightFireTimer = 0;
         }
