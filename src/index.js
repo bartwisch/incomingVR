@@ -143,20 +143,27 @@ function setupScene({ scene, camera }) {
 	bulletGroup = new THREE.Group();
 	scene.add(bulletGroup);
 
-	// Enemy placeholders: shared geometry/material and group
-	const enemyGeo = new THREE.IcosahedronGeometry(ENEMY_RADIUS, 0);
-	const enemyMat = new THREE.MeshStandardMaterial({
-		color: 0xff3333,
-		metalness: 0.1,
-		roughness: 0.8,
-	});
-	const enemyGroup = new THREE.Group();
-	enemyGroup.name = 'enemies';
-	scene.add(enemyGroup);
-	// Stash factory and group for use in onFrame
-	bulletGroup.userData.enemyGeo = enemyGeo;
-	bulletGroup.userData.enemyMat = enemyMat;
-	bulletGroup.userData.enemyGroup = enemyGroup;
+// Enemy placeholders: shared geometry/materials and group
+const enemyGeo = new THREE.IcosahedronGeometry(ENEMY_RADIUS, 0);
+const enemyMats = [
+new THREE.MeshStandardMaterial({
+color: 0xff3333,
+metalness: 0.1,
+roughness: 0.8,
+}),
+new THREE.MeshStandardMaterial({
+color: 0x3333ff,
+metalness: 0.1,
+roughness: 0.8,
+}),
+];
+const enemyGroup = new THREE.Group();
+enemyGroup.name = 'enemies';
+scene.add(enemyGroup);
+// Stash factory and group for use in onFrame
+bulletGroup.userData.enemyGeo = enemyGeo;
+bulletGroup.userData.enemyMats = enemyMats;
+bulletGroup.userData.enemyGroup = enemyGroup;
 
 	// Audio: listener + load shot buffer (prefer shot1.mp3 with fallbacks)
 	audioListener = new THREE.AudioListener();
@@ -294,10 +301,10 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 	}
 
 	// Enemies: spawn, move, and handle bullet collisions
-	const enemyGroup = bulletGroup?.userData?.enemyGroup;
-	const enemyGeo = bulletGroup?.userData?.enemyGeo;
-	const enemyMat = bulletGroup?.userData?.enemyMat;
-	if (enemyGroup && enemyGeo && enemyMat) {
+const enemyGroup = bulletGroup?.userData?.enemyGroup;
+const enemyGeo = bulletGroup?.userData?.enemyGeo;
+const enemyMats = bulletGroup?.userData?.enemyMats;
+if (enemyGroup && enemyGeo && enemyMats) {
 		enemySpawnTimer += delta;
 		while (enemySpawnTimer >= ENEMY_SPAWN_INTERVAL) {
 			enemySpawnTimer -= ENEMY_SPAWN_INTERVAL;
@@ -316,8 +323,9 @@ function onFrame(delta, _time, { controllers, camera, player }) {
 				.addScaledVector(fwd, ahead)
 				.addScaledVector(right, lateral);
 			start.y = ppos.y + ENEMY_Y_OFFSET;
-			const dir = ppos.clone().sub(start).normalize();
-			const enemy = new THREE.Mesh(enemyGeo, enemyMat);
+const dir = ppos.clone().sub(start).normalize();
+const mat = enemyMats[Math.floor(Math.random() * enemyMats.length)];
+const enemy = new THREE.Mesh(enemyGeo, mat);
 			enemy.position.copy(start);
 			enemy.userData = {
 				vel: dir.multiplyScalar(ENEMY_SPEED),
